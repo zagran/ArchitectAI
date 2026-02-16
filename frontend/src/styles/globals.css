@@ -1,0 +1,330 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500&display=swap');
+
+:root {
+  --foreground-rgb: 0, 0, 0;
+  --background-start-rgb: 214, 219, 220;
+  --background-end-rgb: 255, 255, 255;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --foreground-rgb: 255, 255, 255;
+    --background-start-rgb: 0, 0, 0;
+    --background-end-rgb: 0, 0, 0;
+  }
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: linear-gradient(
+      to bottom,
+      transparent,
+      rgb(var(--background-end-rgb))
+    )
+    rgb(var(--background-start-rgb));
+  font-family: 'Inter', sans-serif;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Loading spinner */
+.spinner {
+  border: 2px solid #f3f4f6;
+  border-top: 2px solid #3b82f6;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Architecture diagram styles */
+.architecture-node {
+  @apply bg-white border-2 border-primary-200 rounded-lg p-4 shadow-md hover:shadow-lg transition-shadow cursor-pointer;
+}
+
+.architecture-node.selected {
+  @apply border-primary-500 bg-primary-50;
+}
+
+.architecture-edge {
+  stroke: #3b82f6;
+  stroke-width: 2;
+  fill: none;
+}
+
+.architecture-edge.animated {
+  stroke-dasharray: 5;
+  animation: dash 1s linear infinite;
+}
+
+@keyframes dash {
+  to {
+    stroke-dashoffset: -10;
+  }
+}
+
+/* Code syntax highlighting */
+.code-block {
+  @apply bg-secondary-900 text-white p-4 rounded-lg overflow-x-auto;
+  font-family: 'Fira Code', monospace;
+}
+
+.code-block .keyword {
+  @apply text-blue-300;
+}
+
+.code-block .string {
+  @apply text-green-300;
+}
+
+.code-block .comment {
+  @apply text-secondary-400 italic;
+}
+
+/* Toast notifications */
+.toast {
+  @apply fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg max-w-sm;
+}
+
+.toast.success {
+  @apply bg-success-100 text-success-800 border border-success-200;
+}
+
+.toast.error {
+  @apply bg-error-100 text-error-800 border border-error-200;
+}
+
+.toast.warning {
+  @apply bg-warning-100 text-warning-800 border border-warning-200;
+}
+
+.toast.info {
+  @apply bg-primary-100 text-primary-800 border border-primary-200;
+}
+
+/* Custom form styles */
+.form-field {
+  @apply block w-full px-3 py-2 border border-secondary-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500;
+}
+
+.form-field.error {
+  @apply border-error-300 focus:ring-error-500 focus:border-error-500;
+}
+
+.form-label {
+  @apply block text-sm font-medium text-secondary-700 mb-1;
+}
+
+.form-error {
+  @apply text-sm text-error-600 mt-1;
+}
+
+/* Button styles */
+.btn {
+  @apply inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors;
+}
+
+.btn-primary {
+  @apply text-white bg-primary-600 hover:bg-primary-700 focus:ring-primary-500;
+}
+
+.btn-secondary {
+  @apply text-secondary-700 bg-white hover:bg-secondary-50 border-secondary-300 focus:ring-primary-500;
+}
+
+.btn-success {
+  @apply text-white bg-success-600 hover:bg-success-700 focus:ring-success-500;
+}
+
+.btn-warning {
+  @apply text-white bg-warning-600 hover:bg-warning-700 focus:ring-warning-500;
+}
+
+.btn-error {
+  @apply text-white bg-error-600 hover:bg-error-700 focus:ring-error-500;
+}
+
+.btn:disabled {
+  @apply opacity-50 cursor-not-allowed;
+}
+
+/* Card styles */
+.card {
+  @apply bg-white rounded-lg shadow-sm border border-secondary-200 p-6;
+}
+
+.card-header {
+  @apply border-b border-secondary-200 pb-4 mb-6;
+}
+
+.card-title {
+  @apply text-lg font-semibold text-secondary-900;
+}
+
+.card-description {
+  @apply text-sm text-secondary-600 mt-1;
+}
+
+/* Architecture visualization specific styles */
+.architecture-canvas {
+  @apply w-full h-full bg-secondary-50 relative overflow-hidden;
+}
+
+.component-palette {
+  @apply bg-white border-r border-secondary-200 w-64 p-4 overflow-y-auto;
+}
+
+.component-item {
+  @apply flex items-center p-3 mb-2 bg-secondary-50 rounded-lg cursor-pointer hover:bg-secondary-100 transition-colors;
+}
+
+.component-item.dragging {
+  @apply opacity-50;
+}
+
+/* Cost analysis styles */
+.cost-breakdown-item {
+  @apply flex justify-between items-center py-2 px-3 rounded hover:bg-secondary-50;
+}
+
+.cost-chart {
+  @apply w-full h-64;
+}
+
+/* Loading states */
+.skeleton {
+  @apply animate-pulse bg-secondary-200 rounded;
+}
+
+.skeleton-text {
+  @apply h-4 bg-secondary-200 rounded animate-pulse;
+}
+
+.skeleton-circle {
+  @apply rounded-full bg-secondary-200 animate-pulse;
+}
+
+/* Responsive utilities */
+@media (max-width: 768px) {
+  .mobile-hidden {
+    @apply hidden;
+  }
+  
+  .mobile-full {
+    @apply w-full;
+  }
+}
+
+/* Print styles */
+@media print {
+  .no-print {
+    @apply hidden;
+  }
+  
+  .print-full-width {
+    @apply w-full;
+  }
+}
+
+/* Accessibility improvements */
+.sr-only {
+  @apply absolute w-px h-px p-0 -m-px overflow-hidden whitespace-nowrap border-0;
+}
+
+/* Focus visible for keyboard navigation */
+.focus-visible:focus {
+  @apply outline-none ring-2 ring-primary-500 ring-offset-2;
+}
+
+/* Animation utilities */
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.3s ease-out forwards;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Custom component styles for specific architecture elements */
+.aws-service-icon {
+  @apply w-8 h-8 mr-3;
+}
+
+.architecture-flow {
+  @apply relative;
+}
+
+.flow-connection {
+  @apply absolute border-t-2 border-primary-400;
+}
+
+.flow-arrow {
+  @apply absolute w-0 h-0 border-l-4 border-r-4 border-b-4 border-transparent border-b-primary-400;
+}
+
+/* Progress indicators */
+.progress-bar {
+  @apply w-full bg-secondary-200 rounded-full h-2.5;
+}
+
+.progress-fill {
+  @apply bg-primary-600 h-2.5 rounded-full transition-all duration-300;
+}
+
+/* Status indicators */
+.status-dot {
+  @apply inline-block w-2 h-2 rounded-full mr-2;
+}
+
+.status-dot.success {
+  @apply bg-success-500;
+}
+
+.status-dot.warning {
+  @apply bg-warning-500;
+}
+
+.status-dot.error {
+  @apply bg-error-500;
+}
+
+.status-dot.info {
+  @apply bg-primary-500;
+}

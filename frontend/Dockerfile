@@ -1,68 +1,53 @@
-# Multi-stage build for Next.js frontend
-
-# Development stage
-FROM node:18-alpine AS development
+# Stage 1: Dependencies
+FROM node:18-alpine AS deps
+RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
 # Copy package files
-COPY package*.json ./
-RUN npm ci
+COPY package.json package-lock.json* ./
+# Install ALL dependencies (including devDependencies) for development
+RUN npm install
 
-# Copy source code
+# --- NEW STAGE: Development ---
+# This matches the 'target: development' in your docker-compose.yaml
+FROM deps AS development
+WORKDIR /app
 COPY . .
-
-# Expose port and start development server
+ENV NODE_ENV=development
+# Port 3000 for Next.js dev server
 EXPOSE 3000
+# The command is handled by docker-compose, but we add it here for safety
 CMD ["npm", "run", "dev"]
 
-# Dependencies stage
-FROM node:18-alpine AS deps
+# Stage 2: Builder (for production)
+FROM deps AS builder
 WORKDIR /app
-
-# Copy package files
-COPY package*.json ./
-RUN npm ci --only=production && npm cache clean --force
-
-# Builder stage
-FROM node:18-alpine AS builder
-WORKDIR /app
-
-# Copy dependencies from deps stage
-COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-
-# Build the application
 ENV NEXT_TELEMETRY_DISABLED 1
+ENV NODE_ENV=production
+# Build the application using the standalone output
 RUN npm run build
 
-# Production stage
-FROM node:18-alpine AS production
+# Stage 3: Runner (Production Image)
+FROM node:18-alpine AS runner
 WORKDIR /app
 
-# Create non-root user
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED 1
+
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-# Copy built application
+# Copy built application (Standalone mode)
 COPY --from=builder /app/public ./public
-COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
 
-# Copy built Next.js files
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-
-# Switch to non-root user
+RUN chown -R nextjs:nodejs /app
 USER nextjs
 
-# Expose port
 EXPOSE 3000
-
 ENV PORT 3000
 ENV HOSTNAME "0.0.0.0"
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:3000/api/health || exit 1
-
-# Start the application
 CMD ["node", "server.js"]
