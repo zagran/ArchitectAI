@@ -227,7 +227,7 @@ async def get_architecture(
         architecture = {
             "id": architecture_id,
             "name": "Sample Architecture",
-            "created_at": "2024-01-01T00:00:00Z",
+            "created_at": "2026-01-01T00:00:00Z",
             "user_id": user_id,
             "components": [],
             "estimated_cost": 500.0
@@ -401,7 +401,7 @@ async def list_architectures(
             {
                 "id": str(uuid4()),
                 "name": "E-commerce Platform",
-                "created_at": "2024-01-01T00:00:00Z",
+                "created_at": "2026-01-01T00:00:00Z",
                 "estimated_cost": 450.0,
                 "components_count": 5,
                 "status": "completed"
@@ -409,7 +409,7 @@ async def list_architectures(
             {
                 "id": str(uuid4()),
                 "name": "Data Pipeline",
-                "created_at": "2024-01-02T00:00:00Z",
+                "created_at": "2026-01-02T00:00:00Z",
                 "estimated_cost": 780.0,
                 "components_count": 8,
                 "status": "completed"

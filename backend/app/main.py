@@ -114,11 +114,6 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 async def general_exception_handler(request: Request, exc: Exception):
     """Handle unexpected exceptions"""
     logger.error(f"Unexpected error: {str(exc)}", exc_info=True)
-    print("1111111111111111111111111111111111111111111111111111111111111111111111")
-    print("1111111111111111111111111111111111111111111111111111111111111111111111")
-    print(settings.DEBUG)
-    print("1111111111111111111111111111111111111111111111111111111111111111111111")
-    print("1111111111111111111111111111111111111111111111111111111111111111111111")
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content=ErrorResponse(
@@ -203,7 +198,7 @@ async def health_check():
     
     health_status = {
         "status": "healthy" if db_healthy and nova_health.get('nova_lite', False) else "degraded",
-        "timestamp": "2024-01-01T00:00:00Z",  # Will be updated with actual timestamp
+        "timestamp": "2026-01-01T00:00:00Z",  # Will be updated with actual timestamp
         "version": "1.0.0",
         "services": {
             "api": True,

@@ -2,26 +2,26 @@
 
 <div align="center">
 
-[![Amazon Nova Hackathon](https://img.shields.io/badge/Amazon%20Nova-Hackathon%202024-orange?style=for-the-badge)](https://amazon-nova.devpost.com/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-green?style=flat&logo=fastapi)](https://fastapi.tiangolo.com)
-[![Next.js](https://img.shields.io/badge/Next.js-14+-black?style=flat&logo=next.js)](https://nextjs.org/)
-[![Python](https://img.shields.io/badge/Python-3.11+-blue?style=flat&logo=python)](https://python.org)
+[![Amazon Nova Hackathon](https://img.shields.io/badge/Amazon%20Nova-Hackathon%202026-orange?style=for-the-badge)](https://amazon-nova.devpost.com/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.129+-green?style=flat&logo=fastapi)](https://fastapi.tiangolo.com)
+[![Next.js](https://img.shields.io/badge/Next.js-18+-black?style=flat&logo=next.js)](https://nextjs.org/)
+[![Python](https://img.shields.io/badge/Python-3.12+-blue?style=flat&logo=python)](https://python.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.3+-blue?style=flat&logo=typescript)](https://typescriptlang.org)
 [![Docker](https://img.shields.io/badge/Docker-Compose-blue?style=flat&logo=docker)](https://docker.com)
 
 **Transform business requirements into complete system architectures with visual diagrams, cost estimates, and implementation roadmaps using Amazon Nova's multimodal capabilities.**
 
-[🚀 Quick Start](#quick-start) • [📖 Documentation](#documentation) • [🎯 Demo](#demo-scenarios) • [🏗️ Architecture](#system-architecture) • [🤝 Contributing](#contributing)
+[Quick Start](#quick-start) • [Documentation](#documentation) • [Demo](#demo-scenarios) • [Architecture](#system-architecture) • [Contributing](#contributing)
 
 </div>
 
 ---
 
-## 🌟 Overview
+## Overview
 
 ArchitectAI revolutionizes cloud architecture design by leveraging Amazon Nova's advanced AI models to transform natural language business requirements into production-ready system architectures in under 30 seconds. Unlike traditional diagramming tools that only create visuals, ArchitectAI provides complete end-to-end solutions.
 
-### 🎯 Core Value Proposition
+### Core Value Proposition
 
 | Feature | Traditional Approach | ArchitectAI |
 |---------|---------------------|-------------|
@@ -35,25 +35,25 @@ ArchitectAI revolutionizes cloud architecture design by leveraging Amazon Nova's
 
 ArchitectAI showcases all four categories of Amazon Nova models:
 
-- **🧠 Nova 2 Lite**: Advanced reasoning for architecture decisions and requirements extraction
-- **🎨 Nova Canvas**: Visual diagram generation with professional AWS architecture standards
-- **⚡ Nova Micro**: Fast cost optimization suggestions and performance insights
-- **📊 Nova Multimodal Embeddings**: Process and understand text, documents, and existing diagrams
+- ** Nova 2 Lite**: Advanced reasoning for architecture decisions and requirements extraction
+- ** Nova Canvas**: Visual diagram generation with professional AWS architecture standards
+- ** Nova Micro**: Fast cost optimization suggestions and performance insights
+- ** Nova Multimodal Embeddings**: Process and understand text, documents, and existing diagrams
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 
 Ensure you have the following installed:
-- **Docker** (v20.10+) and **Docker Compose** (v2.0+)
+- **Docker** and **Docker Compose**
 - **Node.js** (v18+) and **npm** (v9+)
-- **Python** (v3.11+)
+- **Python** (v3.12+)
 - **Git** for version control
 - **AWS Account** with Bedrock access enabled
 
-### 🔧 Installation
+### Installation
 
 1. **Clone and Setup**
    ```bash
@@ -99,7 +99,7 @@ Ensure you have the following installed:
    docker-compose up --build
    ```
 
-### 🌐 Access Points
+### Access Points
 
 Once running, access the application at:
 
@@ -112,7 +112,7 @@ Once running, access the application at:
 
 ---
 
-## 🏗️ System Architecture
+## System Architecture
 
 ### High-Level Architecture
 
@@ -133,7 +133,7 @@ graph TB
     AWS --> S3[S3 Storage]
 ```
 
-### 🔧 Technology Stack
+### Technology Stack
 
 | Layer | Technologies | Purpose |
 |-------|-------------|---------|
@@ -144,11 +144,11 @@ graph TB
 | **Infrastructure** | Docker, Docker Compose, AWS ECS/Fargate | Containerized deployment and orchestration |
 | **Monitoring** | Structlog, Prometheus, CloudWatch | Comprehensive logging and metrics |
 
-### 📁 Project Structure
+### Project Structure
 
 ```
 architectai-hackathon/
-├── 🖥️  frontend/                    # Next.js React Frontend
+├── frontend/                    # Next.js React Frontend
 │   ├── src/
 │   │   ├── components/             # Reusable UI components
 │   │   │   ├── RequirementsInput/  # Requirements capture components
@@ -163,7 +163,7 @@ architectai-hackathon/
 │   ├── package.json                # Node.js dependencies
 │   └── Dockerfile                  # Frontend container config
 │
-├── 🔧 backend/                      # FastAPI Python Backend
+├── backend/                      # FastAPI Python Backend
 │   ├── app/
 │   │   ├── services/               # Business logic services
 │   │   │   ├── nova_client.py      # Amazon Nova integration
@@ -178,15 +178,15 @@ architectai-hackathon/
 │   ├── requirements.txt            # Python dependencies
 │   └── Dockerfile                  # Backend container config
 │
-├── 🗄️  database/                   # Database schemas and migrations
+├── database/                   # Database schemas and migrations
 │   ├── init.sql                    # Initial database setup
 │   ├── migrations/                 # Database migration scripts
 │   └── seeds/                      # Sample data for development
 │
-├── 📚 docs/                        # Documentation
-├── 🛠️  scripts/                    # Utility scripts
-├── 🏗️  infra/                      # Infrastructure as Code (Terraform/CF)
-├── 🎯 hackathon/                   # Hackathon-specific materials
+├── docs/                        # Documentation
+├── scripts/                    # Utility scripts
+├── infra/                      # Infrastructure as Code (Terraform/CF)
+├── hackathon/                   # Hackathon-specific materials
 │
 ├── docker-compose.yml              # Local development environment
 ├── .env.example                    # Environment variables template
@@ -195,7 +195,7 @@ architectai-hackathon/
 
 ---
 
-## 🎯 Demo Scenarios
+## Demo Scenarios
 
 ### 1. 🛒 E-commerce Platform Generation
 
@@ -208,7 +208,7 @@ architectai-hackathon/
 - Cost breakdown: ~$4,200/month
 - Implementation timeline: 6 weeks
 
-### 2. 📊 Real-time Analytics Pipeline
+### 2. Real-time Analytics Pipeline
 
 **Input**: "Create a real-time analytics pipeline processing 1TB of IoT sensor data daily from 10,000 devices. Need real-time dashboards and ML-based anomaly detection."
 
@@ -219,7 +219,7 @@ architectai-hackathon/
 - SageMaker for ML workflows
 - Cost estimate: ~$2,800/month
 
-### 3. 🔄 Microservices Migration
+### 3. Microservices Migration
 
 **Input**: Upload existing monolith architecture diagram + "Migrate this to microservices supporting 50,000 concurrent users"
 
@@ -234,7 +234,7 @@ architectai-hackathon/
 
 ## 🔨 Development Guide
 
-### 🏃‍♂️ Running in Development Mode
+### Running in Development Mode
 
 ```bash
 # Start all services with hot reload
@@ -286,7 +286,7 @@ docker-compose exec db psql -U postgres -d architectai
 
 ---
 
-## 🚀 Deployment
+## Deployment
 
 ### 🐳 Production Deployment
 
@@ -298,7 +298,7 @@ docker-compose -f docker-compose.prod.yml build
 ./scripts/deploy.sh
 ```
 
-### 🌩️ Infrastructure as Code
+### Infrastructure as Code
 
 The project includes Terraform configurations for AWS deployment:
 
@@ -320,7 +320,7 @@ terraform apply
 
 ---
 
-## 🔌 API Documentation
+## API Documentation
 
 ### Core Endpoints
 
@@ -383,7 +383,7 @@ curl -X GET "http://localhost:8000/api/v1/architectures/{id}/cost" \
 
 ---
 
-## 🧠 Amazon Nova Integration Details
+## Amazon Nova Integration Details
 
 ### Nova 2 Lite Integration
 
@@ -460,7 +460,7 @@ optimizations = await nova_client.suggest_optimizations(
 
 ---
 
-## 📈 Performance & Scalability
+## Performance & Scalability
 
 ### Performance Targets
 
@@ -482,7 +482,7 @@ optimizations = await nova_client.suggest_optimizations(
 
 ---
 
-## 🛡️ Security
+## Security
 
 ### Security Features
 
@@ -504,7 +504,7 @@ optimizations = await nova_client.suggest_optimizations(
 
 ---
 
-## 💰 Cost Analysis
+## Cost Analysis
 
 ### AWS Service Usage
 
@@ -523,7 +523,7 @@ optimizations = await nova_client.suggest_optimizations(
 
 ---
 
-## 🧪 Testing Strategy
+## Testing Strategy
 
 ### Test Coverage
 
@@ -560,7 +560,7 @@ cd frontend && npm test -- --coverage --watchAll=false
 
 ---
 
-## 🚨 Troubleshooting
+## Troubleshooting
 
 ### Common Issues
 
@@ -631,7 +631,7 @@ SELECT * FROM pg_stat_activity;
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 ### Development Workflow
 
@@ -686,7 +686,7 @@ When adding new features:
 
 ---
 
-## 📚 Additional Resources
+## Additional Resources
 
 ### Amazon Nova Resources
 - [Amazon Nova Documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/models-nova.html)
@@ -705,15 +705,15 @@ When adding new features:
 
 ---
 
-## 📄 License
+## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
 
-## 🏆 Hackathon Information
+## Hackathon Information
 
-**Event**: Amazon Nova Hackathon 2024  
+**Event**: Amazon Nova Hackathon 2026
 **Submission URL**: https://amazon-nova.devpost.com/  
 **Team**: Serhii Zahranychnyi - Senior Software Engineer  
 **Submission Date**: [To be updated]  
@@ -739,7 +739,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-## 📞 Contact
+## Contact
 
 **Serhii Zahranychnyi**  
 Senior Software Engineer
@@ -752,8 +752,8 @@ GitHub: https://github.com/zagran
 
 <div align="center">
 
-**Built with ❤️ for the Amazon Nova Hackathon 2024**
+**Built with ❤️ for the Amazon Nova Hackathon 2026**
 
-[![Star this repo](https://img.shields.io/github/stars/yourusername/architectai-hackathon?style=social)](https://github.com/yourusername/architectai-hackathon)
+[![Star this repo](https://img.shields.io/github/stars/yourusername/architectai-hackathon?style=social)](https://github.com/zagran/ArchitectAI)
 
 </div>

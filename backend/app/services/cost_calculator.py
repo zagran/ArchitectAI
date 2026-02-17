@@ -171,7 +171,7 @@ class CostCalculatorService:
                 cost_scenarios=cost_scenarios,
                 optimization_suggestions=[opt.title for opt in optimization_suggestions],
                 confidence_level=self._calculate_confidence_level(component_costs),
-                pricing_data_version="2024-01-01"
+                pricing_data_version="2026-01-01"
             )
             
             processing_time = (datetime.now() - start_time).total_seconds() * 1000

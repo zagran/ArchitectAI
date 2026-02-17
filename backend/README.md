@@ -273,4 +273,4 @@ MIT License - see LICENSE file for details.
 
 ---
 
-**Built for the Amazon Nova Hackathon 2024**
+**Built for the Amazon Nova Hackathon 2026**

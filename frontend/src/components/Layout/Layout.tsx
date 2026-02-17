@@ -377,7 +377,7 @@ export default function Layout({ children, title, description }: LayoutProps) {
           </div>
           <div className="mt-16 border-t border-secondary-900/10 pt-8 sm:mt-20 md:flex md:items-center md:justify-between lg:mt-24">
             <p className="mt-8 text-xs leading-5 text-secondary-500 md:order-1 md:mt-0">
-              &copy; 2024 ArchitectAI. Built for the Amazon Nova Hackathon. All rights reserved.
+              &copy; 2026 ArchitectAI. Built for the Amazon Nova Hackathon. All rights reserved.
             </p>
           </div>
         </div>

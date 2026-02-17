@@ -179,7 +179,7 @@ export default function NewProjectPage() {
         ],
         optimizationSuggestions: ['Consider Reserved Instances for 30% savings'],
         confidenceLevel: 0.87,
-        pricingDataVersion: '2024-01',
+        pricingDataVersion: '2026-01',
         calculatedAt: new Date().toISOString()
       },
       optimizationSuggestions: [

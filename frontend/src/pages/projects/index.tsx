@@ -54,8 +54,8 @@ export default function ProjectsPage() {
           description: 'Scalable e-commerce solution for 100,000 concurrent users',
           status: ProjectStatus.COMPLETED,
           architectures: [],
-          createdAt: '2024-01-01T00:00:00Z',
-          updatedAt: '2024-01-15T00:00:00Z',
+          createdAt: '2026-01-01T00:00:00Z',
+          updatedAt: '2026-01-15T00:00:00Z',
           tags: ['e-commerce', 'scalable', 'aws'],
         },
         {
@@ -65,8 +65,8 @@ export default function ProjectsPage() {
           description: 'Real-time data processing and analytics for IoT sensors',
           status: ProjectStatus.IN_PROGRESS,
           architectures: [],
-          createdAt: '2024-01-10T00:00:00Z',
-          updatedAt: '2024-01-20T00:00:00Z',
+          createdAt: '2026-01-10T00:00:00Z',
+          updatedAt: '2026-01-20T00:00:00Z',
           tags: ['data', 'analytics', 'iot'],
         },
         {
@@ -76,8 +76,8 @@ export default function ProjectsPage() {
           description: 'Serverless backend for mobile application',
           status: ProjectStatus.DRAFT,
           architectures: [],
-          createdAt: '2024-01-20T00:00:00Z',
-          updatedAt: '2024-01-20T00:00:00Z',
+          createdAt: '2026-01-20T00:00:00Z',
+          updatedAt: '2026-01-20T00:00:00Z',
           tags: ['mobile', 'serverless', 'api'],
         },
       ];

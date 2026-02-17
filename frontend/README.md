@@ -267,7 +267,7 @@ This frontend is specifically designed for the Amazon Nova Hackathon, showcasing
 
 ## License
 
-MIT License - built for Amazon Nova Hackathon 2024
+MIT License - built for Amazon Nova Hackathon 2026
 
 ---
 

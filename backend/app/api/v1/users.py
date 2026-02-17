@@ -187,8 +187,8 @@ async def get_user_profile(user_id: str = Depends(get_current_user_id)):
             "id": user_id,
             "email": "user@example.com",
             "full_name": "Demo User",
-            "created_at": "2024-01-01T00:00:00Z",
-            "updated_at": "2024-01-01T00:00:00Z",
+            "created_at": "2026-01-01T00:00:00Z",
+            "updated_at": "2026-01-01T00:00:00Z",
             "preferences": {
                 "default_region": "us-east-1",
                 "currency": "USD",
@@ -202,7 +202,7 @@ async def get_user_profile(user_id: str = Depends(get_current_user_id)):
                 "architectures_created": 15,
                 "projects_created": 5,
                 "total_estimated_cost_managed": 12450.75,
-                "last_login": "2024-01-01T12:00:00Z"
+                "last_login": "2026-01-01T12:00:00Z"
             }
         }
         

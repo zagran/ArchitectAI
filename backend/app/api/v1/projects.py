@@ -78,8 +78,8 @@ async def list_projects(
                 "name": "E-commerce Platform",
                 "description": "Scalable e-commerce solution for 100K users",
                 "status": ProjectStatus.COMPLETED.value,
-                "created_at": "2024-01-01T00:00:00Z",
-                "updated_at": "2024-01-01T12:00:00Z",
+                "created_at": "2026-01-01T00:00:00Z",
+                "updated_at": "2026-01-01T12:00:00Z",
                 "architectures_count": 3,
                 "estimated_cost": 450.0
             },
@@ -88,8 +88,8 @@ async def list_projects(
                 "name": "Data Analytics Pipeline",
                 "description": "Real-time data processing and analytics",
                 "status": ProjectStatus.IN_PROGRESS.value,
-                "created_at": "2024-01-02T00:00:00Z",
-                "updated_at": "2024-01-02T15:30:00Z",
+                "created_at": "2026-01-02T00:00:00Z",
+                "updated_at": "2026-01-02T15:30:00Z",
                 "architectures_count": 1,
                 "estimated_cost": 780.0
             },
@@ -98,8 +98,8 @@ async def list_projects(
                 "name": "Mobile App Backend",
                 "description": "Serverless backend for mobile application",
                 "status": ProjectStatus.DRAFT.value,
-                "created_at": "2024-01-03T00:00:00Z",
-                "updated_at": "2024-01-03T09:15:00Z",
+                "created_at": "2026-01-03T00:00:00Z",
+                "updated_at": "2026-01-03T09:15:00Z",
                 "architectures_count": 0,
                 "estimated_cost": 0.0
             }
@@ -149,8 +149,8 @@ async def get_project(
             "description": "Scalable e-commerce solution for 100K users",
             "status": ProjectStatus.COMPLETED.value,
             "user_id": user_id,
-            "created_at": "2024-01-01T00:00:00Z",
-            "updated_at": "2024-01-01T12:00:00Z",
+            "created_at": "2026-01-01T00:00:00Z",
+            "updated_at": "2026-01-01T12:00:00Z",
             "requirements": {
                 "functional_requirements": [
                     "User registration and authentication",
@@ -175,14 +175,14 @@ async def get_project(
                 {
                     "id": str(uuid4()),
                     "name": "Production Architecture",
-                    "created_at": "2024-01-01T10:00:00Z",
+                    "created_at": "2026-01-01T10:00:00Z",
                     "estimated_cost": 450.0,
                     "is_current": True
                 },
                 {
                     "id": str(uuid4()),
                     "name": "High Availability Variant",
-                    "created_at": "2024-01-01T11:00:00Z",
+                    "created_at": "2026-01-01T11:00:00Z",
                     "estimated_cost": 680.0,
                     "is_current": False
                 }
@@ -390,8 +390,8 @@ async def get_project_analytics(
                 "advanced": 0
             },
             "creation_timeline": [
-                {"date": "2024-01-01", "architectures_created": 1},
-                {"date": "2024-01-02", "architectures_created": 2}
+                {"date": "2026-01-01", "architectures_created": 1},
+                {"date": "2026-01-02", "architectures_created": 2}
             ],
             "optimization_potential": {
                 "total_savings_percentage": 25.0,
