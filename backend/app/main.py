@@ -93,7 +93,7 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
         content=ErrorResponse(
             error_type="HTTPException",
             message=exc.detail
-        ).model_dump()
+        ).model_dump(mode="json")
     )
 
 
@@ -106,7 +106,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
             error_type="ValidationError",
             message="Request validation failed",
             details={"errors": exc.errors()}
-        ).model_dump()
+        ).model_dump(mode="json")
     )
 
 
@@ -119,7 +119,7 @@ async def general_exception_handler(request: Request, exc: Exception):
         content=ErrorResponse(
             error_type="InternalServerError",
             message="An unexpected error occurred" if not settings.DEBUG else str(exc)
-        ).model_dump()
+        ).model_dump(mode="json")
     )
 
 

@@ -1,7 +1,7 @@
 [tool.poetry]
-name = "fastapi-boilerplate"
+name = "architectai-backend"
 version = "0.1.0"
-description = "FastAPI boilerplate"
+description = "AI-Powered System Architecture Generator using Amazon Nova"
 authors = ["Serhii Zahranychnyi <zagranlab@gmail.com>"]
 readme = "README.md"
 
@@ -27,7 +27,7 @@ python-decouple = "^3.8"
 structlog = "^25.5.0"
 prometheus-client = "^0.24.1"
 dumb-init = "^1.2.5.post1"
-bcrypt = "^5.0.0"
+bcrypt = "^4.0.1"
 boto3 = "^1.42.49"
 
 

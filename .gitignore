@@ -233,3 +233,6 @@ cython_debug/
 
 # MacOS
 .DS_Store
+
+# Test DB
+test.db
