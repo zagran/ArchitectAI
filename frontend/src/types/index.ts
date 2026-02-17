@@ -262,8 +262,8 @@ export interface PaginatedResponse<T> extends APIResponse<T[]> {
 
 // UI Component Props
 export interface ButtonProps {
-  variant?: 'primary' | 'secondary' | 'success' | 'warning' | 'error';
-  size?: 'sm' | 'md' | 'lg';
+  variant?: 'primary' | 'secondary' | 'success' | 'warning' | 'error' | 'ghost' | 'link';
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
   loading?: boolean;
   disabled?: boolean;
   onClick?: () => void;

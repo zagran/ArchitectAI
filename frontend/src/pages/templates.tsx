@@ -138,7 +138,7 @@ export default function TemplatesPage() {
                   <Input
                     placeholder="Search templates..."
                     value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onChange={(value: any) => setSearchQuery(typeof value === 'string' ? value : value.target.value)}
                     className="pl-10"
                   />
                 </div>
@@ -147,7 +147,7 @@ export default function TemplatesPage() {
               <div>
                 <Select
                   value={selectedCategory}
-                  onChange={(value) => setSelectedCategory(value)}
+                  onChange={(value: any) => setSelectedCategory(typeof value === 'string' ? value : value.target.value)}
                   options={categories.map(cat => ({ value: cat, label: cat }))}
                 />
               </div>
@@ -155,7 +155,7 @@ export default function TemplatesPage() {
               <div>
                 <Select
                   value={selectedComplexity}
-                  onChange={(value) => setSelectedComplexity(value)}
+                  onChange={(value: any) => setSelectedComplexity(typeof value === 'string' ? value : value.target.value)}
                   options={complexityLevels.map(level => ({ 
                     value: level, 
                     label: level === 'All' ? 'All Complexity' : level.charAt(0).toUpperCase() + level.slice(1)

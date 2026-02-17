@@ -1,327 +1,327 @@
 import { useState } from 'react';
 import Head from 'next/head';
-import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { 
-  CloudIcon, 
-  CpuChipIcon, 
-  ChartBarIcon, 
-  SparklesIcon,
-  RocketLaunchIcon,
-  ShieldCheckIcon
-} from '@heroicons/react/24/outline';
 import Layout from '@/components/Layout/Layout';
+import AuthForm from '@/components/Auth/AuthForm';
+import RequirementsInputComponent from '@/components/RequirementsInput/RequirementsInput';
+import ArchitectureViewer from '@/components/ArchitectureViewer/ArchitectureViewer';
+import { useAuth } from '@/hooks/useAPI';
+import { RequirementsInput, ArchitectureResponse } from '@/types';
 
-const features = [
-  {
-    name: 'AI-Powered Architecture Design',
-    description: 'Transform business requirements into complete AWS architectures using Amazon Nova\'s advanced reasoning capabilities.',
-    icon: SparklesIcon,
-  },
-  {
-    name: 'Visual Diagram Generation',
-    description: 'Generate professional AWS architecture diagrams automatically using Nova Canvas with industry-standard formatting.',
-    icon: CloudIcon,
-  },
-  {
-    name: 'Real-time Cost Analysis',
-    description: 'Get accurate cost estimates and optimization suggestions with live AWS pricing data integration.',
-    icon: ChartBarIcon,
-  },
-  {
-    name: 'Implementation Roadmaps',
-    description: 'Receive step-by-step implementation plans with Infrastructure as Code generation and deployment scripts.',
-    icon: RocketLaunchIcon,
-  },
-  {
-    name: 'Multi-modal Input Processing',
-    description: 'Process text descriptions, documents, and existing architecture diagrams using Nova\'s multimodal capabilities.',
-    icon: CpuChipIcon,
-  },
-  {
-    name: 'Enterprise Security',
-    description: 'Built-in security best practices, compliance checks, and audit trails for enterprise requirements.',
-    icon: ShieldCheckIcon,
-  },
-];
-
-const stats = [
-  { id: 1, name: 'Architecture Generation Time', value: '<30 seconds' },
-  { id: 2, name: 'Cost Accuracy', value: '85%+' },
-  { id: 3, name: 'Time Savings', value: '95%+' },
-  { id: 4, name: 'Nova Models Used', value: 'All 4' },
-];
+type Step = 'requirements' | 'generating' | 'results';
 
 export default function Home() {
-  const [isGenerating, setIsGenerating] = useState(false);
+  const { isAuthenticated, user, loading, login, register, logout } = useAuth();
+  const [currentStep, setCurrentStep] = useState<Step>('requirements');
+  const [architectureResult, setArchitectureResult] = useState<ArchitectureResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleGetStarted = () => {
-    setIsGenerating(true);
-    // Simulate navigation delay
-    setTimeout(() => {
-      window.location.href = '/projects/new';
-    }, 500);
+  const handleRequirementsSubmit = async (data: RequirementsInput) => {
+    try {
+      setCurrentStep('generating');
+      setError(null);
+      await simulateArchitectureGeneration(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Architecture generation failed');
+      setCurrentStep('requirements');
+    }
   };
 
+  const simulateArchitectureGeneration = async (data: RequirementsInput) => {
+    await new Promise(resolve => setTimeout(resolve, 3000));
+
+    const mockResult: ArchitectureResponse = {
+      success: true,
+      architecture: {
+        id: 'arch-1',
+        name: 'Generated Architecture',
+        components: [
+          {
+            id: 'comp-1',
+            name: 'Application Load Balancer',
+            serviceType: 'alb' as any,
+            configuration: { scheme: 'internet-facing', listeners: ['HTTPS:443', 'HTTP:80'] },
+            dependencies: [],
+            estimatedMonthlyCost: 16.2
+          },
+          {
+            id: 'comp-2',
+            name: 'Auto Scaling Group',
+            serviceType: 'ec2' as any,
+            configuration: { instanceType: 't3.medium', minSize: 2, maxSize: 10, desiredCapacity: 3 },
+            dependencies: ['comp-1'],
+            estimatedMonthlyCost: 97.2
+          },
+          {
+            id: 'comp-3',
+            name: 'RDS PostgreSQL',
+            serviceType: 'rds' as any,
+            configuration: { engine: 'postgres', instanceClass: 'db.t3.medium', multiAZ: true, storageGB: 100 },
+            dependencies: [],
+            estimatedMonthlyCost: 68.4
+          },
+          {
+            id: 'comp-4',
+            name: 'ElastiCache Redis',
+            serviceType: 'elasticache' as any,
+            configuration: { nodeType: 'cache.t3.medium', numNodes: 2 },
+            dependencies: [],
+            estimatedMonthlyCost: 48.6
+          },
+          {
+            id: 'comp-5',
+            name: 'S3 Storage',
+            serviceType: 's3' as any,
+            configuration: { storageClass: 'STANDARD', versioning: true, lifecyclePolicies: true },
+            dependencies: [],
+            estimatedMonthlyCost: 23.0
+          }
+        ],
+        connections: [
+          { from: 'Internet', to: 'comp-1', protocol: 'HTTPS' },
+          { from: 'comp-1', to: 'comp-2', protocol: 'HTTP' },
+          { from: 'comp-2', to: 'comp-3', protocol: 'PostgreSQL' },
+          { from: 'comp-2', to: 'comp-4', protocol: 'Redis' },
+          { from: 'comp-2', to: 'comp-5', protocol: 'S3 API' }
+        ],
+        deploymentModel: 'auto_scaling' as any,
+        estimatedMonthlyCost: 253.4,
+        securityFeatures: [
+          'AWS WAF for web application protection',
+          'VPC with private subnets',
+          'Security groups with least privilege access',
+          'RDS encryption at rest',
+          'S3 bucket policies and encryption'
+        ],
+        scalabilityFeatures: [
+          'Auto Scaling Groups for compute resources',
+          'Application Load Balancer for traffic distribution',
+          'ElastiCache for session and data caching',
+          'RDS Multi-AZ for high availability',
+          'CloudFront CDN integration ready'
+        ],
+        metadata: {
+          generatedBy: 'nova-lite',
+          generationTime: '2.3 seconds',
+          confidence: 0.92
+        },
+        createdAt: new Date().toISOString(),
+        novaReasoning: {
+          requirementsAnalysis: 'High-traffic e-commerce platform requiring scalability and reliability',
+          architectureDecision: 'Multi-tier architecture with auto-scaling for variable load',
+          costOptimization: 'Balanced approach between performance and cost efficiency'
+        }
+      },
+      costAnalysis: {
+        architectureId: 'arch-1',
+        totalMonthlyCost: 253.4,
+        componentBreakdown: [
+          {
+            componentId: 'comp-1',
+            componentName: 'Application Load Balancer',
+            serviceType: 'alb',
+            monthlyCost: 16.2,
+            costBreakdown: { fixed: 16.2 },
+            costDrivers: ['Fixed ALB cost'],
+            optimizationPotential: 5
+          },
+          {
+            componentId: 'comp-2',
+            componentName: 'Auto Scaling Group',
+            serviceType: 'ec2',
+            monthlyCost: 97.2,
+            costBreakdown: { compute: 97.2 },
+            costDrivers: ['3 t3.medium instances', '24/7 operation'],
+            optimizationPotential: 30
+          }
+        ],
+        costScenarios: [
+          {
+            scenarioName: 'Current Configuration',
+            description: 'Based on provided requirements',
+            totalMonthlyCost: 253.4,
+            usageAssumptions: { baseline: true },
+            costDrivers: ['Standard pricing', 'On-demand instances']
+          },
+          {
+            scenarioName: 'Reserved Instances',
+            description: '1-year Reserved Instance commitment',
+            totalMonthlyCost: 177.4,
+            usageAssumptions: { reserved: '1-year' },
+            costDrivers: ['Reserved Instance pricing', '30% savings on compute']
+          }
+        ],
+        optimizationSuggestions: ['Consider Reserved Instances for 30% savings'],
+        confidenceLevel: 0.87,
+        pricingDataVersion: '2026-01',
+        calculatedAt: new Date().toISOString()
+      },
+      optimizationSuggestions: [
+        {
+          id: 'opt-1',
+          category: 'cost',
+          title: 'Reserved Instance Savings',
+          description: 'Purchase 1-year Reserved Instances for EC2 to save approximately 30% on compute costs',
+          potentialImpact: 'high',
+          implementationEffort: 'low',
+          estimatedSavingsPercent: 30,
+          affectedComponents: ['comp-2'],
+          implementationSteps: [
+            'Analyze usage patterns over 2-4 weeks',
+            'Purchase Reserved Instances for consistent workloads',
+            'Monitor utilization and adjust as needed'
+          ]
+        },
+        {
+          id: 'opt-2',
+          category: 'performance',
+          title: 'Add CloudFront CDN',
+          description: 'Implement CloudFront CDN for static assets to improve performance and reduce costs',
+          potentialImpact: 'medium',
+          implementationEffort: 'medium',
+          estimatedSavingsPercent: 15,
+          affectedComponents: ['comp-5'],
+          implementationSteps: [
+            'Set up CloudFront distribution',
+            'Configure caching policies',
+            'Update application to use CDN URLs'
+          ]
+        }
+      ],
+      processingTimeMs: 3000,
+      novaUsage: {
+        modelsUsed: ['nova-lite', 'nova-micro'],
+        totalTokens: 2547,
+        processingTime: '3.2s'
+      }
+    };
+
+    setArchitectureResult(mockResult);
+    setCurrentStep('results');
+  };
+
+  const handleStartOver = () => {
+    setCurrentStep('requirements');
+    setArchitectureResult(null);
+    setError(null);
+  };
+
+  if (loading) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="spinner w-8 h-8" />
+        </div>
+      </Layout>
+    );
+  }
+
   return (
-    <Layout>
+    <Layout user={user} isAuthenticated={isAuthenticated} onLogout={logout}>
       <Head>
-        <title>ArchitectAI - AI-Powered System Architecture Generator</title>
-        <meta
-          name="description"
-          content="Transform business requirements into complete AWS architectures using Amazon Nova AI. Generate diagrams, calculate costs, and get implementation roadmaps in seconds."
-        />
+        <title>ArchitectAI - AI-Powered Architecture Generator</title>
+        <meta name="description" content="Transform business requirements into complete AWS architectures using AI." />
       </Head>
 
-      {/* Hero section */}
-      <div className="relative isolate px-6 pt-14 lg:px-8">
-        <div
-          className="absolute inset-x-0 -top-40 -z-10 transform-gpu overflow-hidden blur-3xl sm:-top-80"
-          aria-hidden="true"
-        >
-          <div
-            className="relative left-[calc(50%-11rem)] aspect-[1155/678] w-[36.125rem] -translate-x-1/2 rotate-[30deg] bg-gradient-to-tr from-primary-400 to-primary-600 opacity-30 sm:left-[calc(50%-30rem)] sm:w-[72.1875rem]"
-            style={{
-              clipPath:
-                'polygon(74.1% 44.1%, 100% 61.6%, 97.5% 26.9%, 85.5% 0.1%, 80.7% 2%, 72.5% 32.5%, 60.2% 62.4%, 52.4% 68.1%, 47.5% 58.3%, 45.2% 34.5%, 27.5% 76.7%, 0.1% 64.9%, 17.9% 100%, 27.6% 76.8%, 76.1% 97.7%, 74.1% 44.1%)',
-            }}
-          />
-        </div>
-
-        <div className="mx-auto max-w-2xl py-32 sm:py-48 lg:py-56">
-          <div className="hidden sm:mb-8 sm:flex sm:justify-center">
-            <div className="relative rounded-full px-3 py-1 text-sm leading-6 text-secondary-600 ring-1 ring-secondary-900/10 hover:ring-secondary-900/20">
-              Powered by Amazon Nova AI Models.{' '}
-              <Link href="#features" className="font-semibold text-primary-600">
-                <span className="absolute inset-0" aria-hidden="true" />
-                Learn more <span aria-hidden="true">&rarr;</span>
-              </Link>
-            </div>
-          </div>
-
-          <div className="text-center">
-            <motion.h1
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
-              className="text-4xl font-bold tracking-tight text-secondary-900 sm:text-6xl"
-            >
-              Transform Ideas into 
-              <span className="text-primary-600"> AWS Architectures</span>
-            </motion.h1>
-
-            <motion.p
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.1 }}
-              className="mt-6 text-lg leading-8 text-secondary-600"
-            >
-              AI-powered system architecture generator that creates complete AWS solutions 
-              from your business requirements. Generate professional diagrams, calculate costs, 
-              and get implementation roadmaps in seconds.
-            </motion.p>
-
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.2 }}
-              className="mt-10 flex items-center justify-center gap-x-6"
-            >
-              <button
-                onClick={handleGetStarted}
-                disabled={isGenerating}
-                className="btn btn-primary text-lg px-8 py-3 relative"
-              >
-                {isGenerating ? (
-                  <>
-                    <div className="spinner mr-2" />
-                    Generating...
-                  </>
-                ) : (
-                  'Get Started'
-                )}
-              </button>
-              
-              <Link href="#demo" className="text-sm font-semibold leading-6 text-secondary-900">
-                View Demo <span aria-hidden="true">→</span>
-              </Link>
-            </motion.div>
-          </div>
-        </div>
-
-        <div
-          className="absolute inset-x-0 top-[calc(100%-13rem)] -z-10 transform-gpu overflow-hidden blur-3xl sm:top-[calc(100%-30rem)]"
-          aria-hidden="true"
-        >
-          <div
-            className="relative left-[calc(50%+3rem)] aspect-[1155/678] w-[36.125rem] -translate-x-1/2 bg-gradient-to-tr from-primary-400 to-primary-600 opacity-30 sm:left-[calc(50%+36rem)] sm:w-[72.1875rem]"
-            style={{
-              clipPath:
-                'polygon(74.1% 44.1%, 100% 61.6%, 97.5% 26.9%, 85.5% 0.1%, 80.7% 2%, 72.5% 32.5%, 60.2% 62.4%, 52.4% 68.1%, 47.5% 58.3%, 45.2% 34.5%, 27.5% 76.7%, 0.1% 64.9%, 17.9% 100%, 27.6% 76.8%, 76.1% 97.7%, 74.1% 44.1%)',
-            }}
-          />
-        </div>
-      </div>
-
-      {/* Stats section */}
-      <div className="mx-auto mt-32 max-w-7xl px-6 sm:mt-40 lg:px-8">
-        <div className="mx-auto max-w-2xl lg:mx-0">
-          <h2 className="text-3xl font-bold tracking-tight text-secondary-900 sm:text-4xl">
-            Built for the Amazon Nova Hackathon
-          </h2>
-          <p className="mt-6 text-base leading-7 text-secondary-600">
-            Showcasing the full potential of Amazon Nova AI models in real-world cloud architecture generation.
-          </p>
-        </div>
-        <div className="mx-auto mt-16 flex max-w-2xl flex-col gap-8 lg:mx-0 lg:mt-20 lg:max-w-none lg:flex-row lg:items-end">
-          <div className="flex flex-col-reverse justify-between gap-x-16 gap-y-8 rounded-2xl bg-secondary-50 p-8 sm:w-3/5 sm:max-w-md sm:flex-row-reverse sm:items-end lg:w-72 lg:max-w-none lg:flex-none lg:flex-col lg:items-start">
-            <p className="flex-none text-3xl font-bold tracking-tight text-secondary-900">
-              All Nova Models
+      {!isAuthenticated ? (
+        <div className="flex flex-col items-center justify-center min-h-[calc(100vh-65px)] px-4">
+          <div className="text-center mb-8">
+            <h1 className="text-3xl font-bold text-secondary-900 sm:text-4xl">
+              ArchitectAI
+            </h1>
+            <p className="mt-2 text-secondary-600">
+              AI-Powered Architecture Generator
             </p>
-            <div className="sm:w-80 sm:shrink lg:w-auto lg:flex-none">
-              <p className="text-lg font-semibold sm:text-xl text-secondary-900">
-                Complete Integration
-              </p>
-              <p className="mt-2 text-base leading-7 text-secondary-600">
-                Nova Lite, Canvas, Micro, and Multimodal working together for comprehensive architecture generation.
-              </p>
-            </div>
           </div>
-          <div className="sm:w-2/5 lg:w-auto lg:flex-auto">
-            <div className="-mt-8 grid grid-cols-1 gap-8 sm:grid-cols-2">
-              {stats.map((stat) => (
-                <motion.div
-                  key={stat.id}
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  whileInView={{ opacity: 1, scale: 1 }}
-                  transition={{ duration: 0.5, delay: stat.id * 0.1 }}
-                  viewport={{ once: true }}
-                  className="flex flex-col-reverse gap-y-4"
-                >
-                  <dt className="text-base leading-7 text-secondary-600">{stat.name}</dt>
-                  <dd className="text-4xl font-semibold text-secondary-900">{stat.value}</dd>
-                </motion.div>
-              ))}
-            </div>
-          </div>
+          <AuthForm onLogin={login} onRegister={register} />
         </div>
-      </div>
-
-      {/* Features section */}
-      <div id="features" className="mx-auto mt-32 max-w-7xl px-6 sm:mt-56 lg:px-8">
-        <div className="mx-auto max-w-2xl lg:text-center">
-          <h2 className="text-base font-semibold leading-7 text-primary-600">
-            Powered by Amazon Nova
-          </h2>
-          <p className="mt-2 text-3xl font-bold tracking-tight text-secondary-900 sm:text-4xl">
-            Everything you need to design cloud architectures
-          </p>
-          <p className="mt-6 text-lg leading-8 text-secondary-600">
-            From requirements to implementation, ArchitectAI leverages all four Amazon Nova models 
-            to provide comprehensive architecture solutions with unprecedented speed and accuracy.
-          </p>
-        </div>
-        
-        <div className="mx-auto mt-16 max-w-2xl sm:mt-20 lg:mt-24 lg:max-w-4xl">
-          <dl className="grid max-w-xl grid-cols-1 gap-x-8 gap-y-10 lg:max-w-none lg:grid-cols-2 lg:gap-y-16">
-            {features.map((feature, index) => (
-              <motion.div
-                key={feature.name}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: index * 0.1 }}
-                viewport={{ once: true }}
-                className="relative pl-16"
-              >
-                <dt className="text-base font-semibold leading-7 text-secondary-900">
-                  <div className="absolute left-0 top-0 flex h-10 w-10 items-center justify-center rounded-lg bg-primary-600">
-                    <feature.icon className="h-6 w-6 text-white" aria-hidden="true" />
-                  </div>
-                  {feature.name}
-                </dt>
-                <dd className="mt-2 text-base leading-7 text-secondary-600">{feature.description}</dd>
-              </motion.div>
-            ))}
-          </dl>
-        </div>
-      </div>
-
-      {/* Demo section */}
-      <div id="demo" className="mx-auto mt-32 max-w-7xl px-6 sm:mt-56 lg:px-8">
-        <div className="mx-auto max-w-2xl text-center">
-          <h2 className="text-3xl font-bold tracking-tight text-secondary-900 sm:text-4xl">
-            See ArchitectAI in Action
-          </h2>
-          <p className="mt-6 text-lg leading-8 text-secondary-600">
-            Watch how ArchitectAI transforms a simple business requirement into a complete AWS architecture 
-            with diagrams, cost analysis, and implementation roadmap.
-          </p>
-        </div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 40 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7 }}
-          viewport={{ once: true }}
-          className="mt-16 flow-root sm:mt-24"
-        >
-          <div className="relative -m-2 rounded-xl bg-secondary-900/5 p-2 ring-1 ring-inset ring-secondary-900/10 lg:-m-4 lg:rounded-2xl lg:p-4">
-            <div className="aspect-video rounded-md bg-secondary-800 shadow-2xl ring-1 ring-secondary-900/10">
-              <div className="flex h-full items-center justify-center">
-                <div className="text-center">
-                  <div className="mx-auto mb-4 h-16 w-16 rounded-full bg-primary-600/10 flex items-center justify-center">
-                    <SparklesIcon className="h-8 w-8 text-primary-600" />
-                  </div>
-                  <h3 className="text-xl font-semibold text-white mb-2">Interactive Demo</h3>
-                  <p className="text-secondary-300 mb-4">
-                    Experience the full power of Nova-powered architecture generation
-                  </p>
-                  <Link
-                    href="/projects/new"
-                    className="btn btn-primary"
-                  >
-                    Try Live Demo
-                  </Link>
+      ) : (
+        <div className="min-h-[calc(100vh-65px)] bg-secondary-50">
+          <div className="py-8">
+            {error && (
+              <div className="mx-auto max-w-4xl px-4 mb-8">
+                <div className="bg-error-50 border border-error-200 rounded-lg p-4">
+                  <p className="text-error-800">{error}</p>
                 </div>
               </div>
-            </div>
-          </div>
-        </motion.div>
-      </div>
+            )}
 
-      {/* CTA section */}
-      <div className="mx-auto mt-32 max-w-7xl sm:mt-56 sm:px-6 lg:px-8">
-        <div className="relative isolate overflow-hidden bg-secondary-900 px-6 py-24 text-center shadow-2xl sm:rounded-3xl sm:px-16">
-          <h2 className="mx-auto max-w-2xl text-3xl font-bold tracking-tight text-white sm:text-4xl">
-            Ready to revolutionize your cloud architecture process?
-          </h2>
-          <p className="mx-auto mt-6 max-w-xl text-lg leading-8 text-secondary-300">
-            Join the future of cloud architecture design. Generate production-ready AWS solutions 
-            in seconds, not days.
-          </p>
-          <div className="mt-10 flex items-center justify-center gap-x-6">
-            <Link href="/projects/new" className="btn btn-primary text-lg px-8 py-3">
-              Start Building
-            </Link>
-            <Link href="/templates" className="text-sm font-semibold leading-6 text-white">
-              Browse Templates <span aria-hidden="true">→</span>
-            </Link>
+            {currentStep === 'requirements' && (
+              <RequirementsInputComponent
+                onSubmit={handleRequirementsSubmit}
+                loading={false}
+              />
+            )}
+
+            {currentStep === 'generating' && (
+              <div className="mx-auto max-w-4xl px-4">
+                <div className="bg-white rounded-lg shadow-sm border border-secondary-200 p-12">
+                  <div className="text-center">
+                    <motion.div
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                      className="mx-auto w-16 h-16 border-4 border-primary-200 border-t-primary-600 rounded-full mb-6"
+                    />
+                    <h2 className="text-2xl font-bold text-secondary-900 mb-4">
+                      Generating Your Architecture
+                    </h2>
+                    <div className="max-w-lg mx-auto space-y-4">
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: 0.5 }}
+                        className="flex items-center text-left"
+                      >
+                        <div className="w-2 h-2 bg-primary-600 rounded-full mr-3" />
+                        <span className="text-secondary-600">
+                          Nova 2 Lite is analyzing your requirements...
+                        </span>
+                      </motion.div>
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: 1.5 }}
+                        className="flex items-center text-left"
+                      >
+                        <div className="w-2 h-2 bg-primary-600 rounded-full mr-3" />
+                        <span className="text-secondary-600">
+                          Designing optimal AWS architecture...
+                        </span>
+                      </motion.div>
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: 2.5 }}
+                        className="flex items-center text-left"
+                      >
+                        <div className="w-2 h-2 bg-primary-600 rounded-full mr-3" />
+                        <span className="text-secondary-600">
+                          Nova Micro is calculating costs and optimizations...
+                        </span>
+                      </motion.div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {currentStep === 'results' && architectureResult && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5 }}
+              >
+                <ArchitectureViewer
+                  architecture={architectureResult.architecture!}
+                  costAnalysis={architectureResult.costAnalysis}
+                  optimizations={architectureResult.optimizationSuggestions}
+                  onStartOver={handleStartOver}
+                />
+              </motion.div>
+            )}
           </div>
-          <svg
-            viewBox="0 0 1024 1024"
-            className="absolute left-1/2 top-1/2 -z-10 h-[64rem] w-[64rem] -translate-x-1/2 [mask-image:radial-gradient(closest-side,white,transparent)]"
-            aria-hidden="true"
-          >
-            <circle cx={512} cy={512} r={512} fill="url(#827591b1-ce8c-4110-b064-7cb85a0b1217)" fillOpacity="0.7" />
-            <defs>
-              <radialGradient id="827591b1-ce8c-4110-b064-7cb85a0b1217">
-                <stop stopColor="#3b82f6" />
-                <stop offset={1} stopColor="#1d4ed8" />
-              </radialGradient>
-            </defs>
-          </svg>
         </div>
-      </div>
+      )}
     </Layout>
   );
 }

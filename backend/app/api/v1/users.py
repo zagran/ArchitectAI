@@ -21,19 +21,21 @@ logger = get_logger(__name__)
 router = APIRouter()
 security = HTTPBearer()
 
+# In-memory user store (demo only — resets on server restart)
+from uuid import uuid4
+_users_by_email: Dict[str, Dict[str, Any]] = {}
+
 
 @router.post("/register")
 async def register_user(user_data: UserCreate):
     """Register a new user"""
     try:
-        # Validate input
         if not input_validator.validate_email(user_data.email):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid email address"
             )
-        
-        # Validate password strength
+
         password_validation = security_manager.validate_password_strength(user_data.password)
         if not password_validation["valid"]:
             raise HTTPException(
@@ -43,38 +45,40 @@ async def register_user(user_data: UserCreate):
                     "errors": password_validation["errors"]
                 }
             )
-        
-        # Check if user already exists (in production, check database)
-        # For demo, assume user doesn't exist
-        
-        # Hash password
+
+        if user_data.email in _users_by_email:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User with this email already exists"
+            )
+
         hashed_password = security_manager.get_password_hash(user_data.password)
-        
-        # Create user (in production, save to database)
-        from uuid import uuid4
+
         user = {
             "id": str(uuid4()),
             "email": user_data.email,
             "full_name": user_data.full_name,
+            "hashed_password": hashed_password,
             "is_active": True,
             "created_at": datetime.now().isoformat(),
             "updated_at": datetime.now().isoformat()
         }
-        
-        # Create access token
+
+        _users_by_email[user_data.email] = user
+
         token_data = {
             "sub": user["id"],
             "email": user["email"],
             "roles": ["user"]
         }
         access_token = security_manager.create_access_token(token_data)
-        
+
         logger.info("User registered successfully",
                    user_id=user["id"],
                    email=user_data.email)
-        
+
         security_logger.login_attempt(user_data.email, True)
-        
+
         return {
             "success": True,
             "message": "User registered successfully",
@@ -86,9 +90,9 @@ async def register_user(user_data: UserCreate):
             },
             "access_token": access_token,
             "token_type": "bearer",
-            "expires_in": 86400  # 24 hours
+            "expires_in": 86400
         }
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -106,52 +110,46 @@ async def register_user(user_data: UserCreate):
 async def login_user(user_data: UserLogin):
     """Authenticate user and return access token"""
     try:
-        # Validate input
         if not input_validator.validate_email(user_data.email):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid email address"
             )
-        
-        # In production, fetch user from database
-        # For demo, create sample user
-        stored_password_hash = security_manager.get_password_hash("password123")
-        user = {
-            "id": "user123",
-            "email": user_data.email,
-            "full_name": "Demo User",
-            "hashed_password": stored_password_hash,
-            "is_active": True
-        }
-        
-        # Verify password
+
+        user = _users_by_email.get(user_data.email)
+        if not user:
+            security_logger.login_attempt(user_data.email, False)
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect email or password"
+            )
+
         if not security_manager.verify_password(user_data.password, user["hashed_password"]):
             security_logger.login_attempt(user_data.email, False)
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Incorrect email or password"
             )
-        
+
         if not user["is_active"]:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Account is inactive"
             )
-        
-        # Create access token
+
         token_data = {
             "sub": user["id"],
             "email": user["email"],
             "roles": ["user"]
         }
         access_token = security_manager.create_access_token(token_data)
-        
+
         logger.info("User logged in successfully",
                    user_id=user["id"],
                    email=user_data.email)
-        
+
         security_logger.login_attempt(user_data.email, True)
-        
+
         return {
             "success": True,
             "message": "Login successful",
@@ -162,9 +160,9 @@ async def login_user(user_data: UserLogin):
             },
             "access_token": access_token,
             "token_type": "bearer",
-            "expires_in": 86400  # 24 hours
+            "expires_in": 86400
         }
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -182,35 +180,26 @@ async def login_user(user_data: UserLogin):
 async def get_user_profile(user_id: str = Depends(get_current_user_id)):
     """Get current user profile"""
     try:
-        # In production, fetch from database
+        # Look up user from in-memory store
+        user = None
+        for u in _users_by_email.values():
+            if u["id"] == user_id:
+                user = u
+                break
+
         user_profile = {
             "id": user_id,
-            "email": "user@example.com",
-            "full_name": "Demo User",
-            "created_at": "2026-01-01T00:00:00Z",
-            "updated_at": "2026-01-01T00:00:00Z",
-            "preferences": {
-                "default_region": "us-east-1",
-                "currency": "USD",
-                "notifications": {
-                    "email": True,
-                    "cost_alerts": True,
-                    "architecture_updates": True
-                }
-            },
-            "statistics": {
-                "architectures_created": 15,
-                "projects_created": 5,
-                "total_estimated_cost_managed": 12450.75,
-                "last_login": "2026-01-01T12:00:00Z"
-            }
+            "email": user["email"] if user else "user@example.com",
+            "full_name": user.get("full_name", "User") if user else "User",
+            "created_at": user.get("created_at", "2026-01-01T00:00:00Z") if user else "2026-01-01T00:00:00Z",
+            "updated_at": user.get("updated_at", "2026-01-01T00:00:00Z") if user else "2026-01-01T00:00:00Z",
         }
-        
+
         return {
             "success": True,
             "profile": user_profile
         }
-        
+
     except Exception as e:
         logger.error("Failed to get user profile",
                     user_id=user_id,

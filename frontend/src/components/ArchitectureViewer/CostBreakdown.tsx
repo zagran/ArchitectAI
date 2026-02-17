@@ -1,6 +1,6 @@
 import { CostAnalysis } from '@/types';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { CurrencyDollarIcon, TrendingUpIcon, TrendingDownIcon } from '@heroicons/react/24/outline';
+import { CurrencyDollarIcon, ArrowTrendingUpIcon, ArrowTrendingDownIcon } from '@heroicons/react/24/outline';
 
 interface CostBreakdownProps {
   costAnalysis: CostAnalysis;
@@ -72,7 +72,7 @@ export default function CostBreakdown({ costAnalysis }: CostBreakdownProps) {
               </p>
             </div>
             <div className="p-3 bg-success-100 rounded-full">
-              <TrendingUpIcon className="w-6 h-6 text-success-600" />
+              <ArrowTrendingUpIcon className="w-6 h-6 text-success-600" />
             </div>
           </div>
           <div className="mt-4">
@@ -91,7 +91,7 @@ export default function CostBreakdown({ costAnalysis }: CostBreakdownProps) {
               </p>
             </div>
             <div className="p-3 bg-warning-100 rounded-full">
-              <TrendingDownIcon className="w-6 h-6 text-warning-600" />
+              <ArrowTrendingDownIcon className="w-6 h-6 text-warning-600" />
             </div>
           </div>
           <div className="mt-4">

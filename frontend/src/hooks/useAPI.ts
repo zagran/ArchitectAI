@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { APIClient, APIError } from '@/lib/api';
+import { User, UserCreate } from '@/types';
 
 interface UseAPIOptions {
   immediate?: boolean;
@@ -51,7 +52,7 @@ export function useAPI<T>(
 
 export function useAuth() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -83,6 +84,13 @@ export function useAuth() {
     return result;
   };
 
+  const register = async (userData: UserCreate) => {
+    const result = await APIClient.register(userData);
+    setUser(result.user);
+    setIsAuthenticated(true);
+    return result;
+  };
+
   const logout = async () => {
     try {
       await APIClient.logout();
@@ -97,6 +105,7 @@ export function useAuth() {
     user,
     loading,
     login,
+    register,
     logout,
   };
 }
