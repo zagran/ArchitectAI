@@ -56,6 +56,7 @@ class ArchitectureGeneratorService:
             logger.info("Requirements extracted successfully", 
                        functional_count=len(requirements.functional_requirements),
                        non_functional_count=len(requirements.non_functional_requirements))
+            logger.debug(f"Extracted requirements: {requirements}")
             
             # Step 2: Select appropriate architectural patterns
             patterns = await self._select_patterns(requirements)

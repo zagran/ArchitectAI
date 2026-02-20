@@ -48,6 +48,8 @@ async def lifespan(app: FastAPI):
         logger.info(f"Nova health check: {health}")
         
         logger.info("ArchitectAI startup complete!")
+        logger.info(f"Startup details: environment={settings.ENVIRONMENT}, debug={settings.DEBUG}, nova_health={health}, LOG_LEVEL={settings.LOG_LEVEL}")
+        logger.info("Ready to accept requests")
         yield
         
     except Exception as e:

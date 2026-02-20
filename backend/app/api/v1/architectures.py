@@ -48,6 +48,7 @@ async def generate_architecture(
         logger.info("Architecture generation requested",
                    user_id=user_id,
                    description_length=len(requirements.description))
+        logger.debug(f"Received requirements: {requirements}") 
         
         start_time = datetime.now()
         

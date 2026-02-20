@@ -333,9 +333,6 @@ class PerformanceLogger:
         )
 
 
-# Initialize loggers
-setup_logging()
-
 # Export common loggers
 app_logger = get_logger("app")
 security_logger = SecurityLogger()

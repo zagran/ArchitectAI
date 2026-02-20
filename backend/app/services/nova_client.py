@@ -116,6 +116,7 @@ class NovaClient:
         try:
             # Build comprehensive prompt with multimodal inputs
             prompt = self._build_requirements_extraction_prompt(text, documents, images)
+            logger.debug(f"Generated requirements extraction prompt: {prompt}")
             
             # Use Nova 2 Lite for advanced reasoning
             response = await self._invoke_nova_lite(
@@ -157,6 +158,8 @@ class NovaClient:
         try:
             # Build architecture design prompt
             system_prompt = self._build_architecture_design_system_prompt()
+            logger.debug(f"System prompt for architecture design: {system_prompt}")
+
             user_prompt = self._format_architecture_design_input(requirements, patterns, constraints)
             
             full_prompt = f"{system_prompt}\n\n{user_prompt}"
@@ -170,6 +173,7 @@ class NovaClient:
             
             # Parse architecture response
             architecture = self._parse_architecture_response(response, requirements)
+            logger.debug(f"Parsed architecture design: {architecture}")
             
             # Track successful usage
             processing_time = int((datetime.now() - start_time).total_seconds() * 1000)
@@ -200,6 +204,7 @@ class NovaClient:
         try:
             # Build detailed diagram prompt
             diagram_prompt = self._build_comprehensive_diagram_prompt(architecture, style)
+            logger.debug(f"Generated diagram prompt: {diagram_prompt}")
             
             # Generate diagram with Nova Canvas
             response = await self._invoke_nova_canvas(
@@ -240,6 +245,7 @@ class NovaClient:
             optimization_prompt = self._build_optimization_prompt(
                 architecture, cost_breakdown, usage_patterns
             )
+            logger.debug(f"Optimization prompt: {optimization_prompt}")
             
             # Use Nova Micro for fast optimization suggestions
             response = await self._invoke_nova_micro(
@@ -524,7 +530,16 @@ ANALYZE THE INPUT AND EXTRACT:
    - Disaster recovery and backup needs
    - Testing and deployment requirements
 
-RESPOND IN STRUCTURED JSON FORMAT with clear categorization. Be specific about numbers, targets, and constraints where mentioned.
+RESPOND ONLY with a single JSON object — no extra text, no markdown fences. Use this exact schema:
+{
+  "functional_requirements": ["<string>", ...],
+  "non_functional_requirements": ["<string>", ...],
+  "constraints": {"<key>": "<value>", ...},
+  "scale_requirements": {"<key>": "<value>", ...},
+  "integration_requirements": ["<string>", ...],
+  "compliance_requirements": ["<string>", ...]
+}
+All list fields must be flat arrays of strings. Be specific about numbers, targets, and constraints.
 
 INPUT TO ANALYZE:
 """
@@ -858,32 +873,97 @@ Provide a comprehensive analysis in structured JSON format with specific recomme
 
     # Response parsing methods
 
+    def _extract_json(self, response: str, array: bool = False) -> Optional[str]:
+        """
+        Robustly extract a JSON object or array from a response string.
+
+        Handles:
+        - Markdown code fences (```json ... ```)
+        - Explanatory text before/after the JSON
+        - Nested braces/brackets by counting depth instead of using rfind
+        """
+        import re
+
+        # Strip markdown code fences first
+        fence = re.search(r'```(?:json)?\s*\n?([\s\S]*?)\n?\s*```', response)
+        if fence:
+            response = fence.group(1).strip()
+
+        open_char, close_char = ('[', ']') if array else ('{', '}')
+        start = response.find(open_char)
+        if start == -1:
+            return None
+
+        depth = 0
+        in_string = False
+        escape_next = False
+
+        for i, ch in enumerate(response[start:], start):
+            if escape_next:
+                escape_next = False
+                continue
+            if ch == '\\' and in_string:
+                escape_next = True
+                continue
+            if ch == '"':
+                in_string = not in_string
+                continue
+            if in_string:
+                continue
+            if ch == open_char:
+                depth += 1
+            elif ch == close_char:
+                depth -= 1
+                if depth == 0:
+                    return response[start:i + 1]
+
+        return None
+
+    @staticmethod
+    def _to_str_list(value: Any) -> List[str]:
+        """
+        Normalize a value that should be List[str] but Nova sometimes returns
+        as a dict (keyed by category) or a nested structure.
+        """
+        if isinstance(value, list):
+            result = []
+            for item in value:
+                if isinstance(item, str):
+                    result.append(item)
+                elif isinstance(item, dict):
+                    # e.g. {"feature": "user auth", "description": "..."}
+                    result.extend(str(v) for v in item.values() if v)
+            return result
+        if isinstance(value, dict):
+            # e.g. {"core_features": "...", "api_requirements": "..."}
+            result = []
+            for k, v in value.items():
+                if isinstance(v, str):
+                    result.append(f"{k}: {v}")
+                elif isinstance(v, list):
+                    result.extend(str(i) for i in v if i)
+                elif isinstance(v, dict):
+                    result.extend(f"{sk}: {sv}" for sk, sv in v.items() if sv)
+            return result
+        return []
+
     def _parse_requirements_response(self, response: str) -> ArchitectureRequirements:
         """Parse Nova's requirements extraction response"""
         try:
-            # Attempt to extract JSON from response
-            json_start = response.find('{')
-            json_end = response.rfind('}') + 1
-            
-            if json_start != -1 and json_end > json_start:
-                json_str = response[json_start:json_end]
+            json_str = self._extract_json(response)
+            if json_str:
                 data = json.loads(json_str)
-                
                 return ArchitectureRequirements(
-                    functional_requirements=data.get('functional_requirements', []),
-                    non_functional_requirements=data.get('non_functional_requirements', []),
-                    constraints=data.get('constraints', {}),
-                    scale_requirements=data.get('scale_requirements', {}),
-                    integration_requirements=data.get('integration_requirements', []),
-                    compliance_requirements=data.get('compliance_requirements', [])
+                    functional_requirements=self._to_str_list(data.get('functional_requirements', [])),
+                    non_functional_requirements=self._to_str_list(data.get('non_functional_requirements', [])),
+                    constraints=data.get('constraints', {}) if isinstance(data.get('constraints'), dict) else {},
+                    scale_requirements=data.get('scale_requirements', {}) if isinstance(data.get('scale_requirements'), dict) else {},
+                    integration_requirements=self._to_str_list(data.get('integration_requirements', [])),
+                    compliance_requirements=self._to_str_list(data.get('compliance_requirements', []))
                 )
-            else:
-                # Fallback parsing from text
-                return self._parse_requirements_from_text(response)
-                
         except Exception as e:
             logger.warning(f"Failed to parse requirements JSON: {str(e)}")
-            return self._parse_requirements_from_text(response)
+        return self._parse_requirements_from_text(response)
 
     def _parse_requirements_from_text(self, response: str) -> ArchitectureRequirements:
         """Fallback method to parse requirements from text response"""
@@ -926,42 +1006,36 @@ Provide a comprehensive analysis in structured JSON format with specific recomme
     def _parse_architecture_response(self, response: str, requirements: ArchitectureRequirements) -> SystemArchitecture:
         """Parse architecture design response"""
         try:
-            # Extract JSON from response
-            json_start = response.find('{')
-            json_end = response.rfind('}') + 1
-            
-            if json_start != -1 and json_end > json_start:
-                json_str = response[json_start:json_end]
+            json_str = self._extract_json(response)
+            if json_str:
                 data = json.loads(json_str)
-                
-                # Parse components
+
                 components = []
                 for comp_data in data.get('components', []):
-                    component = ArchitectureComponent(
-                        name=comp_data.get('name', ''),
-                        service_type=comp_data.get('service_type', ServiceType.EC2),
-                        configuration=comp_data.get('configuration', {}),
-                        dependencies=comp_data.get('dependencies', []),
-                        estimated_monthly_cost=comp_data.get('estimated_monthly_cost', 0)
+                    try:
+                        component = ArchitectureComponent(
+                            name=comp_data.get('name', ''),
+                            service_type=comp_data.get('service_type', ServiceType.EC2),
+                            configuration=comp_data.get('configuration', {}),
+                            dependencies=comp_data.get('dependencies', []),
+                            estimated_monthly_cost=comp_data.get('estimated_monthly_cost', 0)
+                        )
+                        components.append(component)
+                    except Exception as comp_err:
+                        logger.warning(f"Skipping invalid component: {comp_err}")
+
+                if components:
+                    return SystemArchitecture(
+                        name=data.get('name', 'Generated Architecture'),
+                        components=components,
+                        connections=data.get('connections', []),
+                        deployment_model=data.get('deployment_model', DeploymentModel.AUTO_SCALING),
+                        estimated_monthly_cost=sum(c.estimated_monthly_cost or 0 for c in components),
+                        nova_reasoning={"raw_response": response[:1000]}
                     )
-                    components.append(component)
-                
-                # Create architecture
-                architecture = SystemArchitecture(
-                    name=data.get('name', 'Generated Architecture'),
-                    components=components,
-                    connections=data.get('connections', []),
-                    deployment_model=DeploymentModel.AUTO_SCALING,
-                    estimated_monthly_cost=sum(comp.estimated_monthly_cost or 0 for comp in components),
-                    nova_reasoning={"raw_response": response[:1000]}  # Store partial response
-                )
-                
-                return architecture
-                
         except Exception as e:
             logger.warning(f"Failed to parse architecture JSON: {str(e)}")
-        
-        # Fallback: create basic architecture
+
         return self._create_fallback_architecture(requirements)
 
     def _create_fallback_architecture(self, requirements: ArchitectureRequirements) -> SystemArchitecture:
@@ -998,33 +1072,38 @@ Provide a comprehensive analysis in structured JSON format with specific recomme
     def _parse_optimization_response(self, response: str) -> List[OptimizationSuggestion]:
         """Parse optimization suggestions from response"""
         try:
-            # Extract JSON from response
-            json_start = response.find('[')
-            json_end = response.rfind(']') + 1
-            
-            if json_start != -1 and json_end > json_start:
-                json_str = response[json_start:json_end]
+            # Try array first, then object with an array inside
+            json_str = self._extract_json(response, array=True) or self._extract_json(response)
+            if json_str:
                 data = json.loads(json_str)
-                
-                optimizations = []
-                for opt_data in data:
-                    optimization = OptimizationSuggestion(
-                        category=opt_data.get('category', 'general'),
-                        title=opt_data.get('title', ''),
-                        description=opt_data.get('description', ''),
-                        potential_impact=opt_data.get('impact', 'medium'),
-                        implementation_effort=opt_data.get('effort', 'medium'),
-                        estimated_savings_percent=opt_data.get('savings_percent'),
-                        implementation_steps=opt_data.get('steps', [])
-                    )
-                    optimizations.append(optimization)
-                
-                return optimizations
-                
+                if isinstance(data, dict):
+                    # Nova may wrap the array in an object key
+                    for val in data.values():
+                        if isinstance(val, list):
+                            data = val
+                            break
+
+                if isinstance(data, list):
+                    optimizations = []
+                    for opt_data in data:
+                        try:
+                            optimization = OptimizationSuggestion(
+                                category=opt_data.get('category', 'general'),
+                                title=opt_data.get('title', ''),
+                                description=opt_data.get('description', ''),
+                                potential_impact=opt_data.get('potential_impact', opt_data.get('impact', 'medium')),
+                                implementation_effort=opt_data.get('implementation_effort', opt_data.get('effort', 'medium')),
+                                estimated_savings_percent=opt_data.get('estimated_savings_percent', opt_data.get('savings_percent')),
+                                implementation_steps=opt_data.get('implementation_steps', opt_data.get('steps', []))
+                            )
+                            optimizations.append(optimization)
+                        except Exception as opt_err:
+                            logger.warning(f"Skipping invalid optimization: {opt_err}")
+                    if optimizations:
+                        return optimizations
         except Exception as e:
             logger.warning(f"Failed to parse optimizations JSON: {str(e)}")
-        
-        # Fallback: return basic optimization suggestions
+
         return [
             OptimizationSuggestion(
                 category="cost",
@@ -1039,14 +1118,9 @@ Provide a comprehensive analysis in structured JSON format with specific recomme
     def _parse_implementation_response(self, response: str) -> Dict[str, Any]:
         """Parse implementation plan from response"""
         try:
-            # Extract JSON from response
-            json_start = response.find('{')
-            json_end = response.rfind('}') + 1
-            
-            if json_start != -1 and json_end > json_start:
-                json_str = response[json_start:json_end]
+            json_str = self._extract_json(response)
+            if json_str:
                 return json.loads(json_str)
-                
         except Exception as e:
             logger.warning(f"Failed to parse implementation JSON: {str(e)}")
         
@@ -1074,13 +1148,10 @@ Provide a comprehensive analysis in structured JSON format with specific recomme
     def _parse_diagram_analysis_response(self, response: str) -> Dict[str, Any]:
         """Parse diagram analysis response"""
         try:
-            json_start = response.find('{')
-            json_end = response.rfind('}') + 1
-            
-            if json_start != -1 and json_end > json_start:
-                json_str = response[json_start:json_end]
+            json_str = self._extract_json(response)
+            if json_str:
                 return json.loads(json_str)
-        except:
+        except Exception:
             pass
         
         return {
