@@ -72,13 +72,13 @@ class NovaClient:
             # Model configurations
             self.model_configs = {
                 'nova_lite': NovaModelConfig(
-                    model_id='amazon.nova-lite-v1:0',
+                    model_id='us.amazon.nova-2-lite-v1:0',
                     max_tokens=4000,
                     temperature=0.2,
                     timeout_seconds=120
                 ),
                 'nova_canvas': NovaModelConfig(
-                    model_id='amazon.nova-canvas-v1:0',
+                    model_id='us.nova-canvas-v1:0',
                     max_tokens=1000,
                     temperature=0.1,
                     timeout_seconds=180
@@ -356,17 +356,17 @@ class NovaClient:
                 modelId=self.model_configs['nova_lite'].model_id,
                 contentType='application/json',
                 body=json.dumps({
-                    'inputText': prompt,
-                    'textGenerationConfig': {
-                        'maxTokenCount': max_tokens,
+                    'messages': [{"role": "user", "content": [{"text": prompt}]}],
+                    'inferenceConfig': {
+                        'maxTokens': max_tokens,
                         'temperature': temperature,
                         'topP': self.model_configs['nova_lite'].top_p
                     }
                 })
             )
-            
+
             response_body = json.loads(response['body'].read())
-            return response_body['results'][0]['outputText']
+            return response_body['output']['message']['content'][0]['text']
             
         except (ClientError, BotoCoreError) as e:
             logger.error(f"Nova Lite API error: {str(e)}")
@@ -379,34 +379,36 @@ class NovaClient:
             raise
 
     async def _invoke_nova_lite_multimodal(self, prompt: str, images: List[str] = None) -> str:
-        """Invoke Nova 2 Lite with multimodal input (text + images)"""
+        """Invoke Nova Lite with multimodal input (text + images)"""
         try:
-            content = [{"type": "text", "text": prompt}]
-            
+            content = [{"text": prompt}]
+
             if images:
                 for image_b64 in images:
                     content.append({
-                        "type": "image",
-                        "source": {
-                            "type": "base64",
-                            "media_type": "image/jpeg",
-                            "data": image_b64
+                        "image": {
+                            "format": "jpeg",
+                            "source": {
+                                "bytes": image_b64
+                            }
                         }
                     })
-            
+
             response = await asyncio.to_thread(
                 self.bedrock_client.invoke_model,
                 modelId=self.model_configs['nova_lite'].model_id,
                 contentType='application/json',
                 body=json.dumps({
                     'messages': [{"role": "user", "content": content}],
-                    'max_tokens': 3000,
-                    'temperature': 0.2
+                    'inferenceConfig': {
+                        'maxTokens': 3000,
+                        'temperature': 0.2
+                    }
                 })
             )
-            
+
             response_body = json.loads(response['body'].read())
-            return response_body['content'][0]['text']
+            return response_body['output']['message']['content'][0]['text']
             
         except Exception as e:
             logger.error(f"Nova Lite multimodal invocation error: {str(e)}")
@@ -463,17 +465,17 @@ class NovaClient:
                 modelId=self.model_configs['nova_micro'].model_id,
                 contentType='application/json',
                 body=json.dumps({
-                    'inputText': prompt,
-                    'textGenerationConfig': {
-                        'maxTokenCount': max_tokens,
+                    'messages': [{"role": "user", "content": [{"text": prompt}]}],
+                    'inferenceConfig': {
+                        'maxTokens': max_tokens,
                         'temperature': temperature,
                         'topP': self.model_configs['nova_micro'].top_p
                     }
                 })
             )
-            
+
             response_body = json.loads(response['body'].read())
-            return response_body['results'][0]['outputText']
+            return response_body['output']['message']['content'][0]['text']
             
         except Exception as e:
             logger.error(f"Nova Micro invocation error: {str(e)}")

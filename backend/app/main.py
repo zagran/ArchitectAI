@@ -10,6 +10,8 @@ import logging
 from contextlib import asynccontextmanager
 from typing import Dict, Any
 
+from datetime import datetime
+
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
@@ -198,7 +200,7 @@ async def health_check():
     
     health_status = {
         "status": "healthy" if db_healthy and nova_health.get('nova_lite', False) else "degraded",
-        "timestamp": "2026-01-01T00:00:00Z",  # Will be updated with actual timestamp
+        "timestamp": datetime.utcnow().isoformat() + "Z",
         "version": "1.0.0",
         "services": {
             "api": True,

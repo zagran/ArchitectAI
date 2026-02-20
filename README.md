@@ -232,7 +232,7 @@ architectai-hackathon/
 
 ---
 
-## 🔨 Development Guide
+## Development Guide
 
 ### Running in Development Mode
 
@@ -246,7 +246,7 @@ cd backend && uvicorn app.main:app --reload  # Start backend
 cd frontend && npm run dev              # Start frontend
 ```
 
-### 🧪 Testing
+### Testing
 
 ```bash
 # Run all tests
@@ -261,7 +261,7 @@ cd frontend
 npm test
 ```
 
-### 🐛 Debugging
+### Debugging
 
 ```bash
 # View logs
@@ -276,7 +276,7 @@ docker-compose exec frontend sh
 docker-compose exec db psql -U postgres -d architectai
 ```
 
-### 📊 Monitoring
+### Monitoring
 
 - **Application Logs**: `docker-compose logs -f`
 - **Database Logs**: `docker-compose logs -f db`
@@ -288,7 +288,7 @@ docker-compose exec db psql -U postgres -d architectai
 
 ## Deployment
 
-### 🐳 Production Deployment
+### Production Deployment
 
 ```bash
 # Build production images
