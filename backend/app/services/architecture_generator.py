@@ -4,6 +4,7 @@ Core service for generating system architectures using Nova models
 """
 
 import asyncio
+import base64
 import json
 import logging
 from datetime import datetime
@@ -148,8 +149,8 @@ class ArchitectureGeneratorService:
         """Extract structured requirements using Nova"""
         return await nova_client.extract_requirements(
             text=requirements_input.description,
-            documents=[base64.b64decode(doc) for doc in requirements_input.uploaded_docs],
-            images=[base64.b64decode(img) for img in requirements_input.diagrams]
+            documents=[base64.b64decode(doc) for doc in (requirements_input.uploaded_docs or [])],
+            images=[base64.b64decode(img) for img in (requirements_input.diagrams or [])]
         )
 
     async def _select_patterns(self, requirements: ArchitectureRequirements) -> List[Dict[str, Any]]:

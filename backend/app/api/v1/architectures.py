@@ -62,29 +62,29 @@ async def generate_architecture(
             architecture, usage_patterns
         )
         
-        # Get optimization suggestions (already included in cost analysis)
-        optimization_suggestions = []  # Will be populated from Nova
-        
-        # Generate implementation roadmap
-        dependencies = {"infrastructure": "aws", "deployment": "terraform"}
-        best_practices = ["security", "monitoring", "cost_optimization"]
-        
-        implementation_roadmap = await nova_client.plan_implementation(
-            architecture, dependencies, best_practices
-        )
-        
+        # Get optimization suggestions via Nova Micro
+        try:
+            optimization_suggestions = await nova_client.suggest_optimizations(
+                architecture=architecture,
+                cost_breakdown=[c.model_dump() for c in cost_analysis.component_breakdown],
+                usage_patterns=UsagePatterns().model_dump()
+            )
+        except Exception as opt_err:
+            logger.warning("Optimization suggestions failed, skipping", error=str(opt_err))
+            optimization_suggestions = []
+
         processing_time = int((datetime.now() - start_time).total_seconds() * 1000)
-        
+
         # Get Nova usage stats
         nova_usage = nova_client.get_usage_summary()
-        
+
         response = ArchitectureResponse(
             success=True,
             architecture=architecture,
             cost_analysis=cost_analysis,
             optimization_suggestions=optimization_suggestions,
-            implementation_roadmap=implementation_roadmap,
-            processing_time_ms=processing_time.to,
+            implementation_roadmap=None,
+            processing_time_ms=processing_time,
             nova_usage=nova_usage
         )
         

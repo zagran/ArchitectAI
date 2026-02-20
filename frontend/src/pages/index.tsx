@@ -7,6 +7,7 @@ import RequirementsInputComponent from '@/components/RequirementsInput/Requireme
 import ArchitectureViewer from '@/components/ArchitectureViewer/ArchitectureViewer';
 import { useAuth } from '@/hooks/useAPI';
 import { RequirementsInput, ArchitectureResponse } from '@/types';
+import APIClient from '@/lib/api';
 
 type Step = 'requirements' | 'generating' | 'results';
 
@@ -20,184 +21,19 @@ export default function Home() {
     try {
       setCurrentStep('generating');
       setError(null);
-      await simulateArchitectureGeneration(data);
+
+      const result = await APIClient.generateArchitecture(data);
+
+      if (!result.success || !result.architecture) {
+        throw new Error('Architecture generation failed. Please try again.');
+      }
+
+      setArchitectureResult(result);
+      setCurrentStep('results');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Architecture generation failed');
       setCurrentStep('requirements');
     }
-  };
-
-  const simulateArchitectureGeneration = async (data: RequirementsInput) => {
-    await new Promise(resolve => setTimeout(resolve, 3000));
-
-    const mockResult: ArchitectureResponse = {
-      success: true,
-      architecture: {
-        id: 'arch-1',
-        name: 'Generated Architecture',
-        components: [
-          {
-            id: 'comp-1',
-            name: 'Application Load Balancer',
-            serviceType: 'alb' as any,
-            configuration: { scheme: 'internet-facing', listeners: ['HTTPS:443', 'HTTP:80'] },
-            dependencies: [],
-            estimatedMonthlyCost: 16.2
-          },
-          {
-            id: 'comp-2',
-            name: 'Auto Scaling Group',
-            serviceType: 'ec2' as any,
-            configuration: { instanceType: 't3.medium', minSize: 2, maxSize: 10, desiredCapacity: 3 },
-            dependencies: ['comp-1'],
-            estimatedMonthlyCost: 97.2
-          },
-          {
-            id: 'comp-3',
-            name: 'RDS PostgreSQL',
-            serviceType: 'rds' as any,
-            configuration: { engine: 'postgres', instanceClass: 'db.t3.medium', multiAZ: true, storageGB: 100 },
-            dependencies: [],
-            estimatedMonthlyCost: 68.4
-          },
-          {
-            id: 'comp-4',
-            name: 'ElastiCache Redis',
-            serviceType: 'elasticache' as any,
-            configuration: { nodeType: 'cache.t3.medium', numNodes: 2 },
-            dependencies: [],
-            estimatedMonthlyCost: 48.6
-          },
-          {
-            id: 'comp-5',
-            name: 'S3 Storage',
-            serviceType: 's3' as any,
-            configuration: { storageClass: 'STANDARD', versioning: true, lifecyclePolicies: true },
-            dependencies: [],
-            estimatedMonthlyCost: 23.0
-          }
-        ],
-        connections: [
-          { from: 'Internet', to: 'comp-1', protocol: 'HTTPS' },
-          { from: 'comp-1', to: 'comp-2', protocol: 'HTTP' },
-          { from: 'comp-2', to: 'comp-3', protocol: 'PostgreSQL' },
-          { from: 'comp-2', to: 'comp-4', protocol: 'Redis' },
-          { from: 'comp-2', to: 'comp-5', protocol: 'S3 API' }
-        ],
-        deploymentModel: 'auto_scaling' as any,
-        estimatedMonthlyCost: 253.4,
-        securityFeatures: [
-          'AWS WAF for web application protection',
-          'VPC with private subnets',
-          'Security groups with least privilege access',
-          'RDS encryption at rest',
-          'S3 bucket policies and encryption'
-        ],
-        scalabilityFeatures: [
-          'Auto Scaling Groups for compute resources',
-          'Application Load Balancer for traffic distribution',
-          'ElastiCache for session and data caching',
-          'RDS Multi-AZ for high availability',
-          'CloudFront CDN integration ready'
-        ],
-        metadata: {
-          generatedBy: 'nova-lite',
-          generationTime: '2.3 seconds',
-          confidence: 0.92
-        },
-        createdAt: new Date().toISOString(),
-        novaReasoning: {
-          requirementsAnalysis: 'High-traffic e-commerce platform requiring scalability and reliability',
-          architectureDecision: 'Multi-tier architecture with auto-scaling for variable load',
-          costOptimization: 'Balanced approach between performance and cost efficiency'
-        }
-      },
-      costAnalysis: {
-        architectureId: 'arch-1',
-        totalMonthlyCost: 253.4,
-        componentBreakdown: [
-          {
-            componentId: 'comp-1',
-            componentName: 'Application Load Balancer',
-            serviceType: 'alb',
-            monthlyCost: 16.2,
-            costBreakdown: { fixed: 16.2 },
-            costDrivers: ['Fixed ALB cost'],
-            optimizationPotential: 5
-          },
-          {
-            componentId: 'comp-2',
-            componentName: 'Auto Scaling Group',
-            serviceType: 'ec2',
-            monthlyCost: 97.2,
-            costBreakdown: { compute: 97.2 },
-            costDrivers: ['3 t3.medium instances', '24/7 operation'],
-            optimizationPotential: 30
-          }
-        ],
-        costScenarios: [
-          {
-            scenarioName: 'Current Configuration',
-            description: 'Based on provided requirements',
-            totalMonthlyCost: 253.4,
-            usageAssumptions: { baseline: true },
-            costDrivers: ['Standard pricing', 'On-demand instances']
-          },
-          {
-            scenarioName: 'Reserved Instances',
-            description: '1-year Reserved Instance commitment',
-            totalMonthlyCost: 177.4,
-            usageAssumptions: { reserved: '1-year' },
-            costDrivers: ['Reserved Instance pricing', '30% savings on compute']
-          }
-        ],
-        optimizationSuggestions: ['Consider Reserved Instances for 30% savings'],
-        confidenceLevel: 0.87,
-        pricingDataVersion: '2026-01',
-        calculatedAt: new Date().toISOString()
-      },
-      optimizationSuggestions: [
-        {
-          id: 'opt-1',
-          category: 'cost',
-          title: 'Reserved Instance Savings',
-          description: 'Purchase 1-year Reserved Instances for EC2 to save approximately 30% on compute costs',
-          potentialImpact: 'high',
-          implementationEffort: 'low',
-          estimatedSavingsPercent: 30,
-          affectedComponents: ['comp-2'],
-          implementationSteps: [
-            'Analyze usage patterns over 2-4 weeks',
-            'Purchase Reserved Instances for consistent workloads',
-            'Monitor utilization and adjust as needed'
-          ]
-        },
-        {
-          id: 'opt-2',
-          category: 'performance',
-          title: 'Add CloudFront CDN',
-          description: 'Implement CloudFront CDN for static assets to improve performance and reduce costs',
-          potentialImpact: 'medium',
-          implementationEffort: 'medium',
-          estimatedSavingsPercent: 15,
-          affectedComponents: ['comp-5'],
-          implementationSteps: [
-            'Set up CloudFront distribution',
-            'Configure caching policies',
-            'Update application to use CDN URLs'
-          ]
-        }
-      ],
-      processingTimeMs: 3000,
-      novaUsage: {
-        modelsUsed: ['nova-lite', 'nova-micro'],
-        totalTokens: 2547,
-        processingTime: '3.2s'
-      }
-    };
-
-    setArchitectureResult(mockResult);
-    setCurrentStep('results');
   };
 
   const handleStartOver = () => {
