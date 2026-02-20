@@ -156,29 +156,24 @@ class NovaClient:
         operation = "architecture_design"
         
         try:
-            # Build architecture design prompt
             system_prompt = self._build_architecture_design_system_prompt()
-            logger.debug(f"System prompt for architecture design: {system_prompt}")
-
             user_prompt = self._format_architecture_design_input(requirements, patterns, constraints)
-            
-            full_prompt = f"{system_prompt}\n\n{user_prompt}"
-            
-            # Use Nova 2 Lite for complex architectural reasoning
+            logger.debug(f"Architecture design user prompt:\n{user_prompt}")
+
+            # Use Nova 2 Lite with proper system/user separation
             response = await self._invoke_nova_lite(
-                prompt=full_prompt,
+                prompt=user_prompt,
+                system_prompt=system_prompt,
                 max_tokens=5000,
-                temperature=0.3
+                temperature=0.3,
             )
-            
-            # Parse architecture response
+            logger.debug(f"Nova architecture design raw response:\n{response}")
+
             architecture = self._parse_architecture_response(response, requirements)
-            logger.debug(f"Parsed architecture design: {architecture}")
-            
-            # Track successful usage
+
             processing_time = int((datetime.now() - start_time).total_seconds() * 1000)
             self._track_usage('nova_lite', operation,
-                            len(full_prompt.split()), len(response.split()),
+                            len(user_prompt.split()), len(response.split()),
                             processing_time, True)
             
             logger.info(f"Architecture designed successfully in {processing_time}ms")
@@ -354,21 +349,31 @@ class NovaClient:
 
     # Private helper methods for Nova API calls
 
-    async def _invoke_nova_lite(self, prompt: str, max_tokens: int = 2000, temperature: float = 0.3) -> str:
+    async def _invoke_nova_lite(
+        self,
+        prompt: str,
+        max_tokens: int = 2000,
+        temperature: float = 0.3,
+        system_prompt: Optional[str] = None,
+    ) -> str:
         """Invoke Nova 2 Lite model for text generation"""
         try:
+            body: Dict[str, Any] = {
+                'messages': [{"role": "user", "content": [{"text": prompt}]}],
+                'inferenceConfig': {
+                    'maxTokens': max_tokens,
+                    'temperature': temperature,
+                    'topP': self.model_configs['nova_lite'].top_p,
+                },
+            }
+            if system_prompt:
+                body['system'] = [{"text": system_prompt}]
+
             response = await asyncio.to_thread(
                 self.bedrock_client.invoke_model,
                 modelId=self.model_configs['nova_lite'].model_id,
                 contentType='application/json',
-                body=json.dumps({
-                    'messages': [{"role": "user", "content": [{"text": prompt}]}],
-                    'inferenceConfig': {
-                        'maxTokens': max_tokens,
-                        'temperature': temperature,
-                        'topP': self.model_configs['nova_lite'].top_p
-                    }
-                })
+                body=json.dumps(body),
             )
 
             response_body = json.loads(response['body'].read())
@@ -590,50 +595,66 @@ Respond with a detailed, production-ready architecture design in structured JSON
 
     def _format_architecture_design_input(self, requirements: ArchitectureRequirements, patterns: List[Dict] = None, constraints: Dict = None) -> str:
         """Format input for architecture design"""
-        input_data = {
-            "requirements": requirements.model_dump(),
-            "available_patterns": patterns or [],
-            "additional_constraints": constraints or {}
-        }
-        
-        return f"""ARCHITECTURE DESIGN REQUEST:
+        func_reqs = "\n".join(f"  - {r}" for r in requirements.functional_requirements) or "  - (none extracted)"
+        nonfunc_reqs = "\n".join(f"  - {r}" for r in requirements.non_functional_requirements) or "  - (none extracted)"
+        compliance = ", ".join(requirements.compliance_requirements) if requirements.compliance_requirements else "none"
+        integrations = "\n".join(f"  - {r}" for r in (requirements.integration_requirements or [])) or "  - none"
 
-REQUIREMENTS:
-{json.dumps(input_data, indent=2)}
+        constraints_text = json.dumps(constraints or requirements.constraints or {}, indent=2)
+        scale_text = json.dumps(requirements.scale_requirements or {}, indent=2)
+        pattern_names = ", ".join(p.get("name", "") for p in (patterns or [])) or "standard web application"
 
-DESIGN TASK:
-Design a complete, production-ready AWS architecture that satisfies all requirements and constraints. Include:
+        output_schema = json.dumps({
+            "name": "Descriptive architecture name",
+            "deployment_model": "one of: auto_scaling | microservices | serverless | containerized | single_instance | hybrid",
+            "components": [
+                {
+                    "name": "Component display name",
+                    "service_type": "one of: ec2 | rds | s3 | alb | nlb | lambda | ecs | eks | fargate | elasticache | cloudfront | api_gateway | dynamodb | cloudwatch | kms | iam | secrets_manager",
+                    "configuration": {"key": "value"},
+                    "dependencies": ["name of another component"],
+                    "estimated_monthly_cost": 0.0
+                }
+            ],
+            "connections": [
+                {"from": "Component A", "to": "Component B", "protocol": "HTTPS"}
+            ]
+        }, indent=2)
 
-1. ARCHITECTURE COMPONENTS:
-   - All AWS services with specific configurations
-   - Component relationships and data flow
-   - Network topology and security design
-   - Data storage and processing architecture
+        return f"""Design a production-ready AWS architecture for the following project.
 
-2. SCALABILITY DESIGN:
-   - Auto-scaling configurations
-   - Load balancing strategy
-   - Performance optimization techniques
-   - Capacity planning recommendations
+=== FUNCTIONAL REQUIREMENTS ===
+{func_reqs}
 
-3. SECURITY ARCHITECTURE:
-   - Identity and access management
-   - Network security (VPC, security groups, NACLs)
-   - Data encryption at rest and in transit
-   - Compliance and audit considerations
+=== NON-FUNCTIONAL REQUIREMENTS ===
+{nonfunc_reqs}
 
-4. OPERATIONAL DESIGN:
-   - Monitoring and alerting strategy
-   - Logging and tracing implementation
-   - Backup and disaster recovery
-   - Deployment and CI/CD integration
+=== SCALE & USAGE ===
+{scale_text}
 
-5. COST OPTIMIZATION:
-   - Service sizing and configuration for cost efficiency
-   - Reserved capacity and spot instance opportunities
-   - Cost monitoring and governance
+=== CONSTRAINTS & BUDGET ===
+{constraints_text}
 
-Provide a comprehensive, implementable architecture design."""
+=== COMPLIANCE ===
+{compliance}
+
+=== INTEGRATION REQUIREMENTS ===
+{integrations}
+
+=== SUGGESTED PATTERNS ===
+{pattern_names}
+
+=== OUTPUT FORMAT ===
+Respond ONLY with a single valid JSON object — no markdown fences, no explanatory text before or after.
+Use exactly this schema (include all fields):
+{output_schema}
+
+Rules:
+- components must have at least 3 items
+- service_type must be one of the listed values (lowercase)
+- estimated_monthly_cost must be a number (USD/month)
+- dependencies lists component names (not IDs)
+- connections must reference component names from the components list"""
 
     def _build_comprehensive_diagram_prompt(self, architecture: SystemArchitecture, style: str) -> str:
         """Build detailed prompt for diagram generation"""
