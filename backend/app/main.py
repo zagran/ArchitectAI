@@ -207,7 +207,7 @@ async def health_check():
             "database": db_healthy,
             "nova_lite": nova_health.get('nova_lite', False),
             "nova_micro": nova_health.get('nova_micro', False),
-            "nova_canvas": False  # Canvas requires special testing
+            "nova_canvas": nova_health.get('nova_canvas', False)
         },
         "environment": settings.ENVIRONMENT,
         "debug": settings.DEBUG

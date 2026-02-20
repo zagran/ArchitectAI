@@ -78,7 +78,7 @@ class NovaClient:
                     timeout_seconds=120
                 ),
                 'nova_canvas': NovaModelConfig(
-                    model_id='us.nova-canvas-v1:0',
+                    model_id='us.amazon.nova-canvas-v1:0',
                     max_tokens=1000,
                     temperature=0.1,
                     timeout_seconds=180
