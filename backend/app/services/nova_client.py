@@ -610,7 +610,7 @@ Respond with a detailed, production-ready architecture design in structured JSON
             "components": [
                 {
                     "name": "Component display name",
-                    "service_type": "one of: ec2 | rds | s3 | alb | nlb | lambda | ecs | eks | fargate | elasticache | cloudfront | api_gateway | dynamodb | cloudwatch | kms | iam | secrets_manager",
+                    "service_type": "one of: ec2 | ecs | fargate | eks | lambda | batch | s3 | ebs | efs | rds | aurora | dynamodb | elasticache | documentdb | redshift | alb | nlb | cloudfront | api_gateway | route53 | nat_gateway | internet_gateway | transit_gateway | sqs | sns | kinesis | eventbridge | mq | msk | iam | kms | secrets_manager | waf | shield | cognito | cloudwatch | x_ray | cloudtrail | athena | glue | opensearch | sagemaker | step_functions | codepipeline | codebuild | other",
                     "configuration": {"key": "value"},
                     "dependencies": ["name of another component"],
                     "estimated_monthly_cost": 0.0
@@ -656,52 +656,111 @@ Rules:
 - dependencies lists component names (not IDs)
 - connections must reference component names from the components list"""
 
+    # AWS service category colors matching official AWS icon palette
+    _AWS_SERVICE_COLORS: Dict[str, str] = {
+        # Compute — orange
+        "ec2": "orange", "ecs": "orange", "fargate": "orange",
+        "eks": "orange", "lambda": "orange", "batch": "orange", "lightsail": "orange",
+        # Database — dark blue
+        "rds": "blue", "aurora": "blue", "dynamodb": "blue",
+        "elasticache": "blue", "documentdb": "blue", "redshift": "blue",
+        "neptune": "blue", "timestream": "blue",
+        # Storage — green
+        "s3": "green", "ebs": "green", "efs": "green", "fsx": "green", "glacier": "green",
+        # Networking — purple
+        "alb": "purple", "nlb": "purple", "cloudfront": "purple",
+        "api_gateway": "purple", "vpc": "purple", "route53": "purple",
+        "nat_gateway": "purple", "internet_gateway": "purple", "transit_gateway": "purple",
+        # Messaging — pink/magenta
+        "sqs": "magenta", "sns": "magenta", "kinesis": "magenta",
+        "eventbridge": "magenta", "mq": "magenta", "msk": "magenta",
+        # Security — red
+        "iam": "red", "kms": "red", "secrets_manager": "red",
+        "waf": "red", "shield": "red", "cognito": "red",
+        "acm": "red", "guardduty": "red",
+        # Monitoring — pink
+        "cloudwatch": "pink", "x_ray": "pink", "cloudtrail": "pink",
+        "config": "pink", "ssm": "pink",
+        # Analytics / ML — dark teal
+        "athena": "teal", "glue": "teal", "emr": "teal",
+        "opensearch": "teal", "sagemaker": "teal", "step_functions": "teal",
+        # CI/CD — silver
+        "codepipeline": "gray", "codebuild": "gray", "codecommit": "gray",
+    }
+
     def _build_comprehensive_diagram_prompt(self, architecture: SystemArchitecture, style: str) -> str:
-        """Build detailed prompt for diagram generation"""
-        components_desc = []
+        """Build detailed prompt for Nova Canvas diagram generation"""
+
+        # Group components by layer
+        edge_types = {"cloudfront", "alb", "nlb", "api_gateway"}
+        compute_types = {"ec2", "ecs", "fargate", "eks", "lambda"}
+        data_types = {"rds", "dynamodb", "elasticache", "documentdb", "s3", "ebs", "efs"}
+        ops_types = {"cloudwatch", "x_ray", "iam", "kms", "secrets_manager"}
+
+        edge_layer, compute_layer, data_layer, ops_layer, other_layer = [], [], [], [], []
         for comp in architecture.components:
-            components_desc.append(f"- {comp.name} ({comp.service_type})")
-        
+            st = comp.service_type.value if hasattr(comp.service_type, 'value') else str(comp.service_type)
+            color = self._AWS_SERVICE_COLORS.get(st, "gray")
+            entry = f"{comp.name} [{st.upper()}, {color} icon]"
+            if st in edge_types:        edge_layer.append(entry)
+            elif st in compute_types:   compute_layer.append(entry)
+            elif st in data_types:      data_layer.append(entry)
+            elif st in ops_types:       ops_layer.append(entry)
+            else:                       other_layer.append(entry)
+
         connections_desc = []
         for conn in architecture.connections:
-            connections_desc.append(f"- {conn.get('from', '')} → {conn.get('to', '')}")
-        
-        return f"""Create a professional AWS architecture diagram with the following specifications:
+            proto = conn.get('protocol', '')
+            label = f" ({proto})" if proto else ""
+            connections_desc.append(f"  {conn.get('from', '')} ──→ {conn.get('to', '')}{label}")
 
-ARCHITECTURE OVERVIEW:
-- Name: {architecture.name}
-- Deployment Model: {architecture.deployment_model}
-- Components Count: {len(architecture.components)}
+        deployment = architecture.deployment_model.value if hasattr(architecture.deployment_model, 'value') else str(architecture.deployment_model)
+        has_multi_az = any(t in deployment for t in ["auto_scaling", "microservices", "containerized"])
 
-COMPONENTS TO INCLUDE:
-{chr(10).join(components_desc)}
+        return f"""Professional AWS cloud architecture diagram, technical style matching official AWS whitepapers and AWS Solutions Library.
 
-CONNECTIONS AND DATA FLOW:
-{chr(10).join(connections_desc)}
+TITLE: "{architecture.name}" — {deployment.replace('_', ' ').title()} Architecture
 
-DIAGRAM REQUIREMENTS:
-- Style: {style}
-- Use official AWS service icons and colors
-- Clean, professional layout with proper spacing
-- Clear data flow arrows with appropriate styles
-- Proper layering: User/Internet → Presentation → Application → Data
-- Include availability zones and regions where relevant
-- Add security boundaries (VPC, subnets, security groups)
-- Use consistent typography and labeling
-- High contrast for readability
-- Professional presentation quality suitable for technical documentation
+CANVAS: Wide landscape format, white background (#FFFFFF), thin light-gray grid lines, 1920x1080 proportions.
 
-VISUAL GUIDELINES:
-- Background: Clean white or light gray
-- Icons: Official AWS service icons
-- Arrows: Clear directional flow with labels
-- Grouping: Visual grouping for related services
-- Text: Clear, readable labels and annotations
-- Layout: Logical left-to-right or top-to-bottom flow
-- Scale: Balanced component sizing
-- Colors: AWS standard color palette
+VISUAL STYLE:
+- Official AWS Architecture Icons 2024 (square icons with rounded corners, white symbol on colored background)
+- Each icon is 64x64px with a label below in dark gray Helvetica/Arial 11pt
+- Dashed colored rectangular borders for grouping regions: AWS Region (orange dashed), VPC (green dashed), Availability Zone (blue dashed, light blue fill), Public Subnet (light green fill), Private Subnet (light blue-gray fill)
+- All group boxes have a small colored label in the top-left corner (e.g. "AWS Region us-east-1", "VPC 10.0.0.0/16", "AZ us-east-1a")
+- Connection arrows: dark gray (#4A4A4A) with solid arrowheads, labeled with protocol in small italic text
+- Drop shadows on group boxes, no drop shadows on icons
 
-Generate a comprehensive, publication-ready architecture diagram."""
+LAYOUT (strict top-to-bottom data flow, left-to-right within each layer):
+
+[TOP — USERS & INTERNET]
+  Stick figure icon labeled "Users / Internet" at very top center
+
+[LAYER 1 — EDGE / CDN / GATEWAY]  (outside VPC, inside AWS Region box)
+{"  " + chr(10)+"  ".join(edge_layer) if edge_layer else "  (none)"}
+
+[LAYER 2 — COMPUTE / APPLICATION]  (inside VPC, split across two Availability Zones)
+{"  " + chr(10)+"  ".join(compute_layer) if compute_layer else "  (none)"}
+
+[LAYER 3 — DATA / STORAGE]  (inside VPC private subnets)
+{"  " + chr(10)+"  ".join(data_layer) if data_layer else "  (none)"}
+
+[LAYER 4 — OPERATIONS / SECURITY]  (outside VPC, right side panel)
+{"  " + chr(10)+"  ".join(ops_layer) if ops_layer else "  (none)"}
+
+{"[OTHER]" + chr(10) + chr(10).join(other_layer) if other_layer else ""}
+
+CONNECTIONS (draw as labeled arrows between the named components):
+{chr(10).join(connections_desc) if connections_desc else "  (connect sequentially top to bottom)"}
+
+{"MULTI-AZ: Split compute and data layers across two side-by-side Availability Zone boxes (AZ-1a left, AZ-1b right). Show primary DB on left, standby replica on right with a sync arrow." if has_multi_az else ""}
+
+MANDATORY DETAILS:
+- AWS logo watermark small in bottom-right corner
+- Thin legend box bottom-left: colored squares for Compute (orange), Database (blue), Storage (green), Network (purple), Security (red)
+- All text anti-aliased, minimum 10pt, never overlapping icons or arrows
+- Arrows must not cross each other; route around boxes using right-angle elbows
+- Consistent vertical spacing of 120px between layers, 80px between items in same layer"""
 
     def _build_optimization_prompt(self, architecture: SystemArchitecture, cost_breakdown: List[Dict], usage_patterns: Dict) -> str:
         """Build prompt for optimization suggestions"""
@@ -1024,6 +1083,41 @@ Provide a comprehensive analysis in structured JSON format with specific recomme
             scale_requirements=scale or {"users": "Not specified", "data_volume": "Not specified"}
         )
 
+    # Maps common Nova-invented aliases → valid ServiceType values
+    _SERVICE_TYPE_ALIASES: Dict[str, str] = {
+        "wafv2": "waf", "waf_v2": "waf",
+        "elb": "alb", "elastic_load_balancer": "alb", "load_balancer": "alb",
+        "aurora": "aurora",
+        "kafka": "msk", "managed_kafka": "msk",
+        "rabbit_mq": "mq", "rabbitmq": "mq",
+        "ses": "other", "pinpoint": "other",
+        "elastic_search": "opensearch", "elasticsearch": "opensearch",
+        "cloudsearch": "opensearch",
+        "codecommit": "codecommit", "code_commit": "codecommit",
+        "codebuild": "codebuild", "code_build": "codebuild",
+        "codepipeline": "codepipeline", "code_pipeline": "codepipeline",
+        "stepfunctions": "step_functions", "step_function": "step_functions",
+        "event_bridge": "eventbridge",
+        "nat": "nat_gateway", "igw": "internet_gateway",
+        "tgw": "transit_gateway",
+    }
+
+    def _resolve_service_type(self, raw: str) -> str:
+        """Map a raw service type string to a valid ServiceType value."""
+        val = raw.strip().lower().replace("-", "_")
+        # already valid
+        if val in [e.value for e in ServiceType]:
+            return val
+        # known alias
+        if val in self._SERVICE_TYPE_ALIASES:
+            return self._SERVICE_TYPE_ALIASES[val]
+        # partial match (e.g. "aws_sqs" → "sqs")
+        for e in ServiceType:
+            if e.value in val or val in e.value:
+                return e.value
+        logger.warning(f"Unknown service_type '{raw}', mapping to 'other'")
+        return ServiceType.OTHER.value
+
     def _parse_architecture_response(self, response: str, requirements: ArchitectureRequirements) -> SystemArchitecture:
         """Parse architecture design response"""
         try:
@@ -1034,9 +1128,11 @@ Provide a comprehensive analysis in structured JSON format with specific recomme
                 components = []
                 for comp_data in data.get('components', []):
                     try:
+                        raw_type = comp_data.get('service_type', 'ec2')
+                        resolved_type = self._resolve_service_type(str(raw_type))
                         component = ArchitectureComponent(
                             name=comp_data.get('name', ''),
-                            service_type=comp_data.get('service_type', ServiceType.EC2),
+                            service_type=resolved_type,
                             configuration=comp_data.get('configuration', {}),
                             dependencies=comp_data.get('dependencies', []),
                             estimated_monthly_cost=comp_data.get('estimated_monthly_cost', 0)

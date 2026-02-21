@@ -41,33 +41,78 @@ class ServiceType(str, Enum):
     FARGATE = "fargate"
     LAMBDA = "lambda"
     EKS = "eks"
-    
+    BATCH = "batch"
+    LIGHTSAIL = "lightsail"
+
     # Storage
     S3 = "s3"
     EBS = "ebs"
     EFS = "efs"
-    
+    FSX = "fsx"
+    GLACIER = "glacier"
+
     # Database
     RDS = "rds"
+    AURORA = "aurora"
     DYNAMODB = "dynamodb"
     ELASTICACHE = "elasticache"
     DOCUMENTDB = "documentdb"
-    
-    # Networking
+    REDSHIFT = "redshift"
+    NEPTUNE = "neptune"
+    TIMESTREAM = "timestream"
+
+    # Networking & Content Delivery
     VPC = "vpc"
     ALB = "alb"
     NLB = "nlb"
     CLOUDFRONT = "cloudfront"
     API_GATEWAY = "api_gateway"
-    
-    # Monitoring & Management
-    CLOUDWATCH = "cloudwatch"
-    X_RAY = "x_ray"
-    
+    ROUTE53 = "route53"
+    DIRECT_CONNECT = "direct_connect"
+    TRANSIT_GATEWAY = "transit_gateway"
+    NAT_GATEWAY = "nat_gateway"
+    INTERNET_GATEWAY = "internet_gateway"
+
+    # Messaging & Streaming
+    SQS = "sqs"
+    SNS = "sns"
+    KINESIS = "kinesis"
+    EVENTBRIDGE = "eventbridge"
+    MQ = "mq"
+    MSK = "msk"
+
     # Security
     IAM = "iam"
     KMS = "kms"
     SECRETS_MANAGER = "secrets_manager"
+    WAF = "waf"
+    SHIELD = "shield"
+    COGNITO = "cognito"
+    ACM = "acm"
+    GUARDDUTY = "guardduty"
+
+    # Monitoring & Management
+    CLOUDWATCH = "cloudwatch"
+    X_RAY = "x_ray"
+    CLOUDTRAIL = "cloudtrail"
+    CONFIG = "config"
+    SSM = "ssm"
+
+    # Analytics & ML
+    ATHENA = "athena"
+    GLUE = "glue"
+    EMR = "emr"
+    OPENSEARCH = "opensearch"
+    SAGEMAKER = "sagemaker"
+    STEP_FUNCTIONS = "step_functions"
+
+    # Developer Tools / CI-CD
+    CODEPIPELINE = "codepipeline"
+    CODEBUILD = "codebuild"
+    CODECOMMIT = "codecommit"
+
+    # Other / catch-all
+    OTHER = "other"
 
 
 # Input Models
