@@ -54,7 +54,6 @@ class NovaClient:
     """
     Comprehensive Amazon Nova client supporting all model types:
     - Nova 2 Lite: Advanced reasoning and architecture generation
-    - Nova Canvas: Visual diagram generation
     - Nova Micro: Fast optimization suggestions
     - Nova Multimodal Embeddings: Document and image processing
     """
@@ -76,12 +75,6 @@ class NovaClient:
                     max_tokens=4000,
                     temperature=0.2,
                     timeout_seconds=120
-                ),
-                'nova_canvas': NovaModelConfig(
-                    model_id='amazon.nova-canvas-v1:0',
-                    max_tokens=1000,
-                    temperature=0.1,
-                    timeout_seconds=180
                 ),
                 'nova_micro': NovaModelConfig(
                     model_id='amazon.nova-micro-v1:0',
@@ -183,44 +176,6 @@ class NovaClient:
             processing_time = int((datetime.now() - start_time).total_seconds() * 1000)
             self._track_usage('nova_lite', operation, 0, 0, processing_time, False, str(e))
             logger.error(f"Architecture design failed: {str(e)}")
-            raise
-
-    async def generate_architecture_diagram(
-        self, 
-        architecture: SystemArchitecture,
-        style: str = "aws-professional"
-    ) -> Dict[str, Any]:
-        """
-        Generate professional architecture diagram using Nova Canvas
-        """
-        start_time = datetime.now()
-        operation = "diagram_generation"
-        
-        try:
-            # Build detailed diagram prompt
-            diagram_prompt = self._build_comprehensive_diagram_prompt(architecture, style)
-            logger.debug(f"Generated diagram prompt: {diagram_prompt}")
-            
-            # Generate diagram with Nova Canvas
-            response = await self._invoke_nova_canvas(
-                text_prompt=diagram_prompt,
-                height=1024,
-                width=1024,
-                cfg_scale=8.0
-            )
-            
-            # Track successful usage
-            processing_time = int((datetime.now() - start_time).total_seconds() * 1000)
-            self._track_usage('nova_canvas', operation,
-                            len(diagram_prompt.split()), 0, processing_time, True)
-            
-            logger.info(f"Diagram generated successfully in {processing_time}ms")
-            return response
-            
-        except Exception as e:
-            processing_time = int((datetime.now() - start_time).total_seconds() * 1000)
-            self._track_usage('nova_canvas', operation, 0, 0, processing_time, False, str(e))
-            logger.error(f"Diagram generation failed: {str(e)}")
             raise
 
     async def suggest_optimizations(
@@ -425,49 +380,6 @@ class NovaClient:
             logger.error(f"Nova Lite multimodal invocation error: {str(e)}")
             raise
 
-    async def _invoke_nova_canvas(
-        self, 
-        text_prompt: str, 
-        height: int = 1024, 
-        width: int = 1024, 
-        cfg_scale: float = 8.0
-    ) -> Dict[str, Any]:
-        """Invoke Nova Canvas for image generation"""
-        try:
-            response = await asyncio.to_thread(
-                self.bedrock_client.invoke_model,
-                modelId=self.model_configs['nova_canvas'].model_id,
-                contentType='application/json',
-                body=json.dumps({
-                    'taskType': 'TEXT_IMAGE',
-                    'textToImageParams': {
-                        'text': text_prompt
-                    },
-                    'imageGenerationConfig': {
-                        'numberOfImages': 1,
-                        'height': height,
-                        'width': width,
-                        'cfgScale': cfg_scale,
-                        'seed': 0
-                    }
-                })
-            )
-            
-            response_body = json.loads(response['body'].read())
-            return {
-                'image_data': response_body['images'][0],
-                'metadata': {
-                    'prompt': text_prompt,
-                    'dimensions': f"{width}x{height}",
-                    'cfg_scale': cfg_scale,
-                    'model': 'nova-canvas'
-                }
-            }
-            
-        except Exception as e:
-            logger.error(f"Nova Canvas invocation error: {str(e)}")
-            raise
-
     async def _invoke_nova_micro(self, prompt: str, max_tokens: int = 1000, temperature: float = 0.4) -> str:
         """Invoke Nova Micro for fast responses"""
         try:
@@ -655,88 +567,6 @@ Rules:
 - estimated_monthly_cost must be a number (USD/month)
 - dependencies lists component names (not IDs)
 - connections must reference component names from the components list"""
-
-    # AWS service category colors matching official AWS icon palette
-    _AWS_SERVICE_COLORS: Dict[str, str] = {
-        # Compute — orange
-        "ec2": "orange", "ecs": "orange", "fargate": "orange",
-        "eks": "orange", "lambda": "orange", "batch": "orange", "lightsail": "orange",
-        # Database — dark blue
-        "rds": "blue", "aurora": "blue", "dynamodb": "blue",
-        "elasticache": "blue", "documentdb": "blue", "redshift": "blue",
-        "neptune": "blue", "timestream": "blue",
-        # Storage — green
-        "s3": "green", "ebs": "green", "efs": "green", "fsx": "green", "glacier": "green",
-        # Networking — purple
-        "alb": "purple", "nlb": "purple", "cloudfront": "purple",
-        "api_gateway": "purple", "vpc": "purple", "route53": "purple",
-        "nat_gateway": "purple", "internet_gateway": "purple", "transit_gateway": "purple",
-        # Messaging — pink/magenta
-        "sqs": "magenta", "sns": "magenta", "kinesis": "magenta",
-        "eventbridge": "magenta", "mq": "magenta", "msk": "magenta",
-        # Security — red
-        "iam": "red", "kms": "red", "secrets_manager": "red",
-        "waf": "red", "shield": "red", "cognito": "red",
-        "acm": "red", "guardduty": "red",
-        # Monitoring — pink
-        "cloudwatch": "pink", "x_ray": "pink", "cloudtrail": "pink",
-        "config": "pink", "ssm": "pink",
-        # Analytics / ML — dark teal
-        "athena": "teal", "glue": "teal", "emr": "teal",
-        "opensearch": "teal", "sagemaker": "teal", "step_functions": "teal",
-        # CI/CD — silver
-        "codepipeline": "gray", "codebuild": "gray", "codecommit": "gray",
-    }
-
-    _CANVAS_MAX_CHARS = 1024  # Nova Canvas hard limit for textToImageParams.text
-
-    def _build_comprehensive_diagram_prompt(self, architecture: SystemArchitecture, style: str) -> str:
-        """Build a compact prompt for Nova Canvas (max 1024 chars)."""
-
-        edge_types    = {"cloudfront", "alb", "nlb", "api_gateway", "route53", "waf", "internet_gateway"}
-        compute_types = {"ec2", "ecs", "fargate", "eks", "lambda", "batch"}
-        data_types    = {"rds", "aurora", "dynamodb", "elasticache", "documentdb", "redshift", "s3", "ebs", "efs"}
-        msg_types     = {"sqs", "sns", "kinesis", "eventbridge", "mq", "msk"}
-
-        def layer_str(types: set, label: str) -> str:
-            items = [
-                c.name + f" ({(c.service_type.value if hasattr(c.service_type, 'value') else str(c.service_type)).upper()})"
-                for c in architecture.components
-                if (c.service_type.value if hasattr(c.service_type, 'value') else str(c.service_type)) in types
-            ]
-            return f"{label}: {', '.join(items)}" if items else ""
-
-        deployment = (
-            architecture.deployment_model.value
-            if hasattr(architecture.deployment_model, 'value')
-            else str(architecture.deployment_model)
-        ).replace('_', ' ')
-
-        conns = "; ".join(
-            f"{c.get('from', '')}→{c.get('to', '')}" + (f"({c['protocol']})" if c.get('protocol') else "")
-            for c in architecture.connections[:8]
-        )
-
-        layers = "\n".join(filter(None, [
-            layer_str(edge_types,    "Edge/Network"),
-            layer_str(compute_types, "Compute"),
-            layer_str(msg_types,     "Messaging"),
-            layer_str(data_types,    "Data/Storage"),
-        ]))
-
-        prompt = (
-            f"AWS architecture diagram, professional whitepaper style. "
-            f"White background, official AWS service icons, color-coded by category "
-            f"(compute=orange, database=blue, storage=green, network=purple, security=red, messaging=pink). "
-            f"Dashed border boxes for AWS Region, VPC, and Availability Zones. "
-            f"Top-to-bottom layered layout with directional arrows between components.\n"
-            f"Title: {architecture.name} ({deployment})\n"
-            f"{layers}\n"
-            f"Connections: {conns}"
-        )
-
-        # Hard truncate to Nova Canvas limit
-        return prompt[:self._CANVAS_MAX_CHARS]
 
     def _build_optimization_prompt(self, architecture: SystemArchitecture, cost_breakdown: List[Dict], usage_patterns: Dict) -> str:
         """Build prompt for optimization suggestions"""
@@ -1298,7 +1128,6 @@ Provide a comprehensive analysis in structured JSON format with specific recomme
         """Check connectivity and health of Nova models"""
         health_status = {
             'nova_lite': False,
-            'nova_canvas': False,
             'nova_micro': False,
             'timestamp': datetime.now().isoformat(),
             'region': settings.AWS_REGION
@@ -1317,11 +1146,7 @@ Provide a comprehensive analysis in structured JSON format with specific recomme
             health_status['nova_micro'] = True
         except Exception as e:
             logger.warning(f"Nova Micro health check failed: {str(e)}")
-        
-        # Note: Canvas health check would require actual image generation
-        # For now, assume it's available if credentials work
-        health_status['nova_canvas'] = health_status['nova_lite']
-        
+
         return health_status
 
 

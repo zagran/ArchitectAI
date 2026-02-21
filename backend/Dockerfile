@@ -40,7 +40,7 @@ COPY --from=python-deps /.venv /.venv
 ENV PATH="/.venv/bin:$PATH"
 
 # Install additional packages
-RUN apt-get update && apt-get install -y --no-install-recommends vim curl libpq5
+RUN apt-get update && apt-get install -y --no-install-recommends vim curl libpq5 graphviz
 
 # Clean cache and remove unnecessary files
 RUN apt-get clean

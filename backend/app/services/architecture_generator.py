@@ -12,6 +12,7 @@ from typing import Dict, List, Optional, Any, Tuple
 
 from app.core.logging import get_logger
 from app.services.nova_client import nova_client
+from app.services import diagram_generator
 from app.models.architecture_models import (
     RequirementsInput,
     ArchitectureRequirements, 
@@ -76,7 +77,7 @@ class ArchitectureGeneratorService:
             metadata = {
                 "generation_time_ms": generation_time,
                 "patterns_used": [p["name"] for p in patterns],
-                "nova_models_used": ["nova-lite", "nova-canvas"],
+                "nova_models_used": ["nova-lite"],
                 "components_generated": len(enhanced_architecture.components),
                 "estimated_monthly_cost": enhanced_architecture.estimated_monthly_cost,
                 "complexity_score": self._calculate_complexity_score(enhanced_architecture)
@@ -107,8 +108,8 @@ class ArchitectureGeneratorService:
                        architecture_id=architecture.id,
                        style=style)
             
-            # Use Nova Canvas to generate diagram
-            diagram_data = await nova_client.generate_architecture_diagram(architecture, style)
+            # Use diagrams library to generate diagram
+            diagram_data = await diagram_generator.generate_architecture_diagram(architecture, style)
             
             # Add metadata
             diagram_data["architecture_id"] = architecture.id

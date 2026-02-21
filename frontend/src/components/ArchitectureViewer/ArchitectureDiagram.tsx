@@ -136,7 +136,7 @@ export default function ArchitectureDiagram({ architecture }: ArchitectureDiagra
       {diagramImage && (
         <div className="mb-8">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-sm font-medium text-secondary-700">Nova Canvas — Generated Diagram</span>
+            <span className="text-sm font-medium text-secondary-700">Generated Diagram</span>
             <button
               onClick={handleDownload}
               className="flex items-center text-sm text-primary-600 hover:text-primary-700 font-medium"
@@ -210,10 +210,10 @@ export default function ArchitectureDiagram({ architecture }: ArchitectureDiagra
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm font-medium text-primary-900">
-              {diagramImage ? 'Regenerate with Nova Canvas' : 'Generate Professional Diagram'}
+              {diagramImage ? 'Regenerate Diagram' : 'Generate Professional Diagram'}
             </p>
             <p className="text-xs text-primary-700 mt-0.5">
-              Uses Nova Canvas to create a publication-ready AWS architecture diagram with official icons.
+              Uses the diagrams library to create a publication-ready AWS architecture diagram with official icons.
             </p>
           </div>
           <button
