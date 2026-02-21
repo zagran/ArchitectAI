@@ -78,7 +78,7 @@ class NovaClient:
                     timeout_seconds=120
                 ),
                 'nova_canvas': NovaModelConfig(
-                    model_id='us.amazon.nova-canvas-v1:0',
+                    model_id='amazon.nova-canvas-v1:0',
                     max_tokens=1000,
                     temperature=0.1,
                     timeout_seconds=180
@@ -688,79 +688,55 @@ Rules:
         "codepipeline": "gray", "codebuild": "gray", "codecommit": "gray",
     }
 
+    _CANVAS_MAX_CHARS = 1024  # Nova Canvas hard limit for textToImageParams.text
+
     def _build_comprehensive_diagram_prompt(self, architecture: SystemArchitecture, style: str) -> str:
-        """Build detailed prompt for Nova Canvas diagram generation"""
+        """Build a compact prompt for Nova Canvas (max 1024 chars)."""
 
-        # Group components by layer
-        edge_types = {"cloudfront", "alb", "nlb", "api_gateway"}
-        compute_types = {"ec2", "ecs", "fargate", "eks", "lambda"}
-        data_types = {"rds", "dynamodb", "elasticache", "documentdb", "s3", "ebs", "efs"}
-        ops_types = {"cloudwatch", "x_ray", "iam", "kms", "secrets_manager"}
+        edge_types    = {"cloudfront", "alb", "nlb", "api_gateway", "route53", "waf", "internet_gateway"}
+        compute_types = {"ec2", "ecs", "fargate", "eks", "lambda", "batch"}
+        data_types    = {"rds", "aurora", "dynamodb", "elasticache", "documentdb", "redshift", "s3", "ebs", "efs"}
+        msg_types     = {"sqs", "sns", "kinesis", "eventbridge", "mq", "msk"}
 
-        edge_layer, compute_layer, data_layer, ops_layer, other_layer = [], [], [], [], []
-        for comp in architecture.components:
-            st = comp.service_type.value if hasattr(comp.service_type, 'value') else str(comp.service_type)
-            color = self._AWS_SERVICE_COLORS.get(st, "gray")
-            entry = f"{comp.name} [{st.upper()}, {color} icon]"
-            if st in edge_types:        edge_layer.append(entry)
-            elif st in compute_types:   compute_layer.append(entry)
-            elif st in data_types:      data_layer.append(entry)
-            elif st in ops_types:       ops_layer.append(entry)
-            else:                       other_layer.append(entry)
+        def layer_str(types: set, label: str) -> str:
+            items = [
+                c.name + f" ({(c.service_type.value if hasattr(c.service_type, 'value') else str(c.service_type)).upper()})"
+                for c in architecture.components
+                if (c.service_type.value if hasattr(c.service_type, 'value') else str(c.service_type)) in types
+            ]
+            return f"{label}: {', '.join(items)}" if items else ""
 
-        connections_desc = []
-        for conn in architecture.connections:
-            proto = conn.get('protocol', '')
-            label = f" ({proto})" if proto else ""
-            connections_desc.append(f"  {conn.get('from', '')} ──→ {conn.get('to', '')}{label}")
+        deployment = (
+            architecture.deployment_model.value
+            if hasattr(architecture.deployment_model, 'value')
+            else str(architecture.deployment_model)
+        ).replace('_', ' ')
 
-        deployment = architecture.deployment_model.value if hasattr(architecture.deployment_model, 'value') else str(architecture.deployment_model)
-        has_multi_az = any(t in deployment for t in ["auto_scaling", "microservices", "containerized"])
+        conns = "; ".join(
+            f"{c.get('from', '')}→{c.get('to', '')}" + (f"({c['protocol']})" if c.get('protocol') else "")
+            for c in architecture.connections[:8]
+        )
 
-        return f"""Professional AWS cloud architecture diagram, technical style matching official AWS whitepapers and AWS Solutions Library.
+        layers = "\n".join(filter(None, [
+            layer_str(edge_types,    "Edge/Network"),
+            layer_str(compute_types, "Compute"),
+            layer_str(msg_types,     "Messaging"),
+            layer_str(data_types,    "Data/Storage"),
+        ]))
 
-TITLE: "{architecture.name}" — {deployment.replace('_', ' ').title()} Architecture
+        prompt = (
+            f"AWS architecture diagram, professional whitepaper style. "
+            f"White background, official AWS service icons, color-coded by category "
+            f"(compute=orange, database=blue, storage=green, network=purple, security=red, messaging=pink). "
+            f"Dashed border boxes for AWS Region, VPC, and Availability Zones. "
+            f"Top-to-bottom layered layout with directional arrows between components.\n"
+            f"Title: {architecture.name} ({deployment})\n"
+            f"{layers}\n"
+            f"Connections: {conns}"
+        )
 
-CANVAS: Wide landscape format, white background (#FFFFFF), thin light-gray grid lines, 1920x1080 proportions.
-
-VISUAL STYLE:
-- Official AWS Architecture Icons 2024 (square icons with rounded corners, white symbol on colored background)
-- Each icon is 64x64px with a label below in dark gray Helvetica/Arial 11pt
-- Dashed colored rectangular borders for grouping regions: AWS Region (orange dashed), VPC (green dashed), Availability Zone (blue dashed, light blue fill), Public Subnet (light green fill), Private Subnet (light blue-gray fill)
-- All group boxes have a small colored label in the top-left corner (e.g. "AWS Region us-east-1", "VPC 10.0.0.0/16", "AZ us-east-1a")
-- Connection arrows: dark gray (#4A4A4A) with solid arrowheads, labeled with protocol in small italic text
-- Drop shadows on group boxes, no drop shadows on icons
-
-LAYOUT (strict top-to-bottom data flow, left-to-right within each layer):
-
-[TOP — USERS & INTERNET]
-  Stick figure icon labeled "Users / Internet" at very top center
-
-[LAYER 1 — EDGE / CDN / GATEWAY]  (outside VPC, inside AWS Region box)
-{"  " + chr(10)+"  ".join(edge_layer) if edge_layer else "  (none)"}
-
-[LAYER 2 — COMPUTE / APPLICATION]  (inside VPC, split across two Availability Zones)
-{"  " + chr(10)+"  ".join(compute_layer) if compute_layer else "  (none)"}
-
-[LAYER 3 — DATA / STORAGE]  (inside VPC private subnets)
-{"  " + chr(10)+"  ".join(data_layer) if data_layer else "  (none)"}
-
-[LAYER 4 — OPERATIONS / SECURITY]  (outside VPC, right side panel)
-{"  " + chr(10)+"  ".join(ops_layer) if ops_layer else "  (none)"}
-
-{"[OTHER]" + chr(10) + chr(10).join(other_layer) if other_layer else ""}
-
-CONNECTIONS (draw as labeled arrows between the named components):
-{chr(10).join(connections_desc) if connections_desc else "  (connect sequentially top to bottom)"}
-
-{"MULTI-AZ: Split compute and data layers across two side-by-side Availability Zone boxes (AZ-1a left, AZ-1b right). Show primary DB on left, standby replica on right with a sync arrow." if has_multi_az else ""}
-
-MANDATORY DETAILS:
-- AWS logo watermark small in bottom-right corner
-- Thin legend box bottom-left: colored squares for Compute (orange), Database (blue), Storage (green), Network (purple), Security (red)
-- All text anti-aliased, minimum 10pt, never overlapping icons or arrows
-- Arrows must not cross each other; route around boxes using right-angle elbows
-- Consistent vertical spacing of 120px between layers, 80px between items in same layer"""
+        # Hard truncate to Nova Canvas limit
+        return prompt[:self._CANVAS_MAX_CHARS]
 
     def _build_optimization_prompt(self, architecture: SystemArchitecture, cost_breakdown: List[Dict], usage_patterns: Dict) -> str:
         """Build prompt for optimization suggestions"""
