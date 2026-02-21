@@ -157,7 +157,7 @@ class NovaClient:
             response = await self._invoke_nova_lite(
                 prompt=user_prompt,
                 system_prompt=system_prompt,
-                max_tokens=5000,
+                max_tokens=8192,
                 temperature=0.3,
             )
             logger.debug(f"Nova architecture design raw response:\n{response}")
@@ -197,10 +197,10 @@ class NovaClient:
             )
             logger.debug(f"Optimization prompt: {optimization_prompt}")
             
-            # Use Nova Micro for fast optimization suggestions
-            response = await self._invoke_nova_micro(
+            # Use Nova Lite for richer, multi-category optimization suggestions
+            response = await self._invoke_nova_lite(
                 prompt=optimization_prompt,
-                max_tokens=2000,
+                max_tokens=3000,
                 temperature=0.4
             )
             
@@ -209,16 +209,16 @@ class NovaClient:
             
             # Track successful usage
             processing_time = int((datetime.now() - start_time).total_seconds() * 1000)
-            self._track_usage('nova_micro', operation,
+            self._track_usage('nova_lite', operation,
                             len(optimization_prompt.split()), len(response.split()),
                             processing_time, True)
-            
+
             logger.info(f"Optimizations generated successfully in {processing_time}ms")
             return optimizations
-            
+
         except Exception as e:
             processing_time = int((datetime.now() - start_time).total_seconds() * 1000)
-            self._track_usage('nova_micro', operation, 0, 0, processing_time, False, str(e))
+            self._track_usage('nova_lite', operation, 0, 0, processing_time, False, str(e))
             logger.error(f"Optimization suggestions failed: {str(e)}")
             raise
 
@@ -523,7 +523,7 @@ Respond with a detailed, production-ready architecture design in structured JSON
                 {
                     "name": "Component display name",
                     "service_type": "one of: ec2 | ecs | fargate | eks | lambda | batch | s3 | ebs | efs | rds | aurora | dynamodb | elasticache | documentdb | redshift | alb | nlb | cloudfront | api_gateway | route53 | nat_gateway | internet_gateway | transit_gateway | sqs | sns | kinesis | eventbridge | mq | msk | iam | kms | secrets_manager | waf | shield | cognito | cloudwatch | x_ray | cloudtrail | athena | glue | opensearch | sagemaker | step_functions | codepipeline | codebuild | other",
-                    "configuration": {"key": "value"},
+                    "configuration": {"instance_type": "t3.medium", "note": "3-5 key settings only"},
                     "dependencies": ["name of another component"],
                     "estimated_monthly_cost": 0.0
                 }
@@ -562,20 +562,35 @@ Use exactly this schema (include all fields):
 {output_schema}
 
 Rules:
-- components must have at least 3 items
+- components must have at least 3 items and should reflect all major services required
 - service_type must be one of the listed values (lowercase)
 - estimated_monthly_cost must be a number (USD/month)
 - dependencies lists component names (not IDs)
-- connections must reference component names from the components list"""
+- connections must reference component names from the components list
+- configuration must contain at most 5 key settings per component — do NOT expand into full AWS parameter blocks"""
 
     def _build_optimization_prompt(self, architecture: SystemArchitecture, cost_breakdown: List[Dict], usage_patterns: Dict) -> str:
         """Build prompt for optimization suggestions"""
-        return f"""Analyze this AWS architecture for optimization opportunities and provide specific, actionable recommendations.
+        schema = json.dumps([
+            {
+                "category": "cost | performance | security | reliability",
+                "title": "Short title",
+                "description": "Detailed description of the optimization",
+                "potential_impact": "low | medium | high",
+                "implementation_effort": "low | medium | high",
+                "estimated_savings_percent": 15.0,
+                "estimated_savings_dollars": 120.0,
+                "affected_components": ["Component Name"],
+                "implementation_steps": ["Step 1", "Step 2"]
+            }
+        ], indent=2)
 
-ARCHITECTURE ANALYSIS:
+        return f"""You are an AWS cost and architecture optimization expert. Analyze this architecture and return 6-10 specific, actionable optimization recommendations covering cost, performance, security, and reliability.
+
+ARCHITECTURE:
 {json.dumps({
     'name': architecture.name,
-    'components': [comp.model_dump() for comp in architecture.components],
+    'components': [{'name': c.name, 'service_type': c.service_type, 'estimated_monthly_cost': c.estimated_monthly_cost} for c in architecture.components],
     'deployment_model': architecture.deployment_model,
     'current_monthly_cost': architecture.estimated_monthly_cost
 }, indent=2)}
@@ -586,51 +601,16 @@ COST BREAKDOWN:
 USAGE PATTERNS:
 {json.dumps(usage_patterns, indent=2)}
 
-OPTIMIZATION ANALYSIS REQUIRED:
+Cover all four categories (cost, performance, security, reliability) with at least one suggestion each. Be specific to the components above — reference their actual names.
 
-1. COST OPTIMIZATION:
-   - Reserved Instance opportunities
-   - Spot Instance utilization potential
-   - Right-sizing recommendations
-   - Storage optimization (lifecycle policies, compression)
-   - Network cost reduction strategies
-   - Service consolidation opportunities
+Respond ONLY with a valid JSON array — no markdown, no explanation. Use this exact schema:
+{schema}
 
-2. PERFORMANCE OPTIMIZATION:
-   - Caching strategies (ElastiCache, CloudFront)
-   - Database optimization (indexing, read replicas)
-   - Auto-scaling improvements
-   - Content delivery optimization
-   - Connection pooling and resource reuse
-
-3. SECURITY ENHANCEMENTS:
-   - IAM policy optimization
-   - Network security improvements
-   - Encryption enhancements
-   - Compliance gap analysis
-   - Vulnerability mitigation
-
-4. OPERATIONAL EFFICIENCY:
-   - Monitoring and alerting improvements
-   - Automation opportunities
-   - Disaster recovery optimization
-   - Backup strategy enhancement
-   - CI/CD pipeline improvements
-
-5. SUSTAINABILITY IMPROVEMENTS:
-   - Carbon footprint reduction
-   - Resource efficiency gains
-   - Serverless migration opportunities
-   - Energy-efficient instance types
-
-For each optimization, provide:
-- Specific implementation steps
-- Expected cost savings or performance gains
-- Implementation effort level (Low/Medium/High)
-- Timeline for implementation
-- Risk assessment and mitigation strategies
-
-Prioritize optimizations by impact vs. effort ratio."""
+Rules:
+- estimated_savings_percent must be a realistic number (0-60); use null if not applicable
+- estimated_savings_dollars must be a realistic monthly dollar amount; use null if not applicable
+- implementation_steps must be a flat array of 2-4 strings
+- affected_components must reference actual component names from the architecture above"""
 
     def _build_implementation_planning_prompt(self, architecture: SystemArchitecture, dependencies: Dict, best_practices: List[str]) -> str:
         """Build prompt for implementation planning"""
@@ -924,42 +904,72 @@ Provide a comprehensive analysis in structured JSON format with specific recomme
         logger.warning(f"Unknown service_type '{raw}', mapping to 'other'")
         return ServiceType.OTHER.value
 
+    def _resolve_deployment_model(self, raw: str) -> str:
+        """Map Nova's deployment model string to a valid DeploymentModel value."""
+        val = raw.strip().lower().replace("-", "_").replace(" ", "_")
+        valid = {e.value for e in DeploymentModel}
+        if val in valid:
+            return val
+        aliases = {
+            "auto_scaling_group": "auto_scaling", "asg": "auto_scaling",
+            "container": "containerized", "containers": "containerized", "docker": "containerized",
+            "k8s": "containerized", "kubernetes": "containerized",
+            "micro_services": "microservices", "micro-services": "microservices",
+            "event_driven": "serverless", "functions": "serverless",
+            "multi_region": "hybrid", "multi-region": "hybrid",
+        }
+        if val in aliases:
+            return aliases[val]
+        logger.warning(f"Unknown deployment_model '{raw}', defaulting to auto_scaling")
+        return DeploymentModel.AUTO_SCALING.value
+
     def _parse_architecture_response(self, response: str, requirements: ArchitectureRequirements) -> SystemArchitecture:
         """Parse architecture design response"""
         try:
             json_str = self._extract_json(response)
-            if json_str:
-                data = json.loads(json_str)
+            if not json_str:
+                logger.warning("_parse_architecture_response: no JSON object found in Nova response")
+                logger.debug(f"Nova raw response (first 500 chars): {response[:500]}")
+                return self._create_fallback_architecture(requirements)
 
-                components = []
-                for comp_data in data.get('components', []):
-                    try:
-                        raw_type = comp_data.get('service_type', 'ec2')
-                        resolved_type = self._resolve_service_type(str(raw_type))
-                        component = ArchitectureComponent(
-                            name=comp_data.get('name', ''),
-                            service_type=resolved_type,
-                            configuration=comp_data.get('configuration', {}),
-                            dependencies=comp_data.get('dependencies', []),
-                            estimated_monthly_cost=comp_data.get('estimated_monthly_cost', 0)
-                        )
-                        components.append(component)
-                    except Exception as comp_err:
-                        logger.warning(f"Skipping invalid component: {comp_err}")
+            data = json.loads(json_str)
 
-                if components:
-                    return SystemArchitecture(
-                        name=data.get('name', 'Generated Architecture'),
-                        components=components,
-                        connections=data.get('connections', []),
-                        deployment_model=data.get('deployment_model', DeploymentModel.AUTO_SCALING),
-                        estimated_monthly_cost=sum(c.estimated_monthly_cost or 0 for c in components),
-                        nova_reasoning={"raw_response": response[:1000]}
+            components = []
+            for comp_data in data.get('components', []):
+                try:
+                    raw_type = comp_data.get('service_type', 'ec2')
+                    resolved_type = self._resolve_service_type(str(raw_type))
+                    component = ArchitectureComponent(
+                        name=comp_data.get('name', ''),
+                        service_type=resolved_type,
+                        configuration=comp_data.get('configuration', {}),
+                        dependencies=comp_data.get('dependencies', []),
+                        estimated_monthly_cost=comp_data.get('estimated_monthly_cost', 0)
                     )
-        except Exception as e:
-            logger.warning(f"Failed to parse architecture JSON: {str(e)}")
+                    components.append(component)
+                except Exception as comp_err:
+                    logger.warning(f"Skipping invalid component {comp_data}: {comp_err}")
 
-        return self._create_fallback_architecture(requirements)
+            if not components:
+                logger.warning(f"_parse_architecture_response: parsed JSON but got 0 valid components. data keys: {list(data.keys())}")
+                return self._create_fallback_architecture(requirements)
+
+            deployment_model = self._resolve_deployment_model(
+                data.get('deployment_model', DeploymentModel.AUTO_SCALING.value)
+            )
+
+            return SystemArchitecture(
+                name=data.get('name', 'Generated Architecture'),
+                components=components,
+                connections=data.get('connections', []),
+                deployment_model=deployment_model,
+                estimated_monthly_cost=sum(c.estimated_monthly_cost or 0 for c in components),
+                nova_reasoning={"raw_response": response[:1000]}
+            )
+
+        except Exception as e:
+            logger.warning(f"_parse_architecture_response exception: {e}", exc_info=True)
+            return self._create_fallback_architecture(requirements)
 
     def _create_fallback_architecture(self, requirements: ArchitectureRequirements) -> SystemArchitecture:
         """Create a basic fallback architecture"""
