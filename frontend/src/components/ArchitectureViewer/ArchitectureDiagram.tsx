@@ -85,6 +85,8 @@ function Layer({ title, components }: { title: string; components: SystemArchite
 
 export default function ArchitectureDiagram({ architecture }: ArchitectureDiagramProps) {
   const [generating, setGenerating] = useState(false);
+  const [showAllConnections, setShowAllConnections] = useState(false);
+  const CONNECTION_PREVIEW = 6;
   const [diagramImage, setDiagramImage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -186,7 +188,7 @@ export default function ArchitectureDiagram({ architecture }: ArchitectureDiagra
         <div className="mt-6 p-4 bg-secondary-50 rounded-lg">
           <h4 className="text-sm font-medium text-secondary-900 mb-2">Data Flow</h4>
           <div className="text-sm text-secondary-600 space-y-1">
-            {architecture.connections.slice(0, 6).map((conn, i) => (
+            {(showAllConnections ? architecture.connections : architecture.connections.slice(0, CONNECTION_PREVIEW)).map((conn, i) => (
               <div key={i} className="flex items-center">
                 <span className="inline-block w-2 h-2 bg-primary-500 rounded-full mr-2 flex-shrink-0" />
                 {conn.from} → {conn.to}
@@ -195,8 +197,13 @@ export default function ArchitectureDiagram({ architecture }: ArchitectureDiagra
                 )}
               </div>
             ))}
-            {architecture.connections.length > 6 && (
-              <p className="text-xs text-secondary-500">+{architecture.connections.length - 6} more</p>
+            {architecture.connections.length > CONNECTION_PREVIEW && (
+              <button
+                onClick={() => setShowAllConnections(v => !v)}
+                className="text-xs text-primary-600 hover:text-primary-800 font-medium mt-1"
+              >
+                {showAllConnections ? 'Show less' : `Show all ${architecture.connections.length} connections`}
+              </button>
             )}
           </div>
         </div>

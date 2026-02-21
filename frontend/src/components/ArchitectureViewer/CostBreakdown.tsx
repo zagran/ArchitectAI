@@ -182,7 +182,7 @@ export default function CostBreakdown({ costAnalysis }: CostBreakdownProps) {
                     <td className="py-3 px-2">
                       <div className="font-medium text-secondary-900">{component.componentName}</div>
                       <div className="text-sm text-secondary-600">
-                        {component.costDrivers.slice(0, 2).join(', ')}
+                        {component.costDrivers.join(', ')}
                       </div>
                     </td>
                     <td className="py-3 px-2">

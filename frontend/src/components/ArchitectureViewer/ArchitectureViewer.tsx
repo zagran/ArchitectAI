@@ -204,6 +204,12 @@ function ArchitectureOverview({
   costAnalysis?: CostAnalysis;
   optimizations: OptimizationSuggestion[];
 }) {
+  const [showAllComponents, setShowAllComponents] = useState(false);
+  const COMPONENT_PREVIEW = 5;
+  const visibleComponents = showAllComponents
+    ? architecture.components
+    : architecture.components.slice(0, COMPONENT_PREVIEW);
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
       {/* Architecture Details */}
@@ -222,23 +228,28 @@ function ArchitectureOverview({
             <dt className="text-sm font-medium text-secondary-500">Components</dt>
             <dd className="mt-1">
               <div className="space-y-2">
-                {architecture.components.slice(0, 5).map((component) => (
+                {visibleComponents.map((component) => (
                   <div key={component.id} className="flex items-center text-sm">
-                    <div className="w-2 h-2 bg-primary-500 rounded-full mr-2" />
+                    <div className="w-2 h-2 bg-primary-500 rounded-full mr-2 flex-shrink-0" />
                     <span className="text-secondary-900">
                       {component.name} ({component.serviceType.toUpperCase()})
                     </span>
                     {component.estimatedMonthlyCost && (
-                      <span className="ml-auto text-secondary-500">
+                      <span className="ml-auto text-secondary-500 pl-2">
                         ${component.estimatedMonthlyCost.toFixed(0)}/mo
                       </span>
                     )}
                   </div>
                 ))}
-                {architecture.components.length > 5 && (
-                  <div className="text-sm text-secondary-500">
-                    +{architecture.components.length - 5} more components
-                  </div>
+                {architecture.components.length > COMPONENT_PREVIEW && (
+                  <button
+                    onClick={() => setShowAllComponents((v) => !v)}
+                    className="text-sm text-primary-600 hover:text-primary-800 font-medium mt-1"
+                  >
+                    {showAllComponents
+                      ? 'Show less'
+                      : `Show all ${architecture.components.length} components`}
+                  </button>
                 )}
               </div>
             </dd>
@@ -248,7 +259,7 @@ function ArchitectureOverview({
             <dt className="text-sm font-medium text-secondary-500">Security Features</dt>
             <dd className="mt-1">
               <ul className="space-y-1">
-                {architecture.securityFeatures.slice(0, 3).map((feature, index) => (
+                {architecture.securityFeatures.map((feature, index) => (
                   <li key={index} className="flex items-center text-sm text-secondary-900">
                     <CheckCircleIcon className="h-4 w-4 text-success-500 mr-2" />
                     {feature}
@@ -277,11 +288,10 @@ function ArchitectureOverview({
 
           {costAnalysis?.componentBreakdown && (
             <div>
-              <p className="text-sm font-medium text-secondary-500 mb-2">Top Cost Components</p>
+              <p className="text-sm font-medium text-secondary-500 mb-2">Cost by Component</p>
               <div className="space-y-2">
                 {costAnalysis.componentBreakdown
                   .sort((a, b) => b.monthlyCost - a.monthlyCost)
-                  .slice(0, 3)
                   .map((component) => (
                     <div key={component.componentId} className="flex items-center justify-between">
                       <span className="text-sm text-secondary-900">{component.componentName}</span>
