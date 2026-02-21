@@ -33,6 +33,31 @@ setup_logging()
 logger = logging.getLogger(__name__)
 
 
+async def _run_migrations():
+    """Add new columns to existing tables without dropping data."""
+    from app.core.database import get_db
+    from sqlalchemy import text
+
+    migrations = [
+        # user_id added to architectures (default '' so NOT NULL constraint holds for old rows)
+        "ALTER TABLE architectures ADD COLUMN IF NOT EXISTS user_id VARCHAR(36) NOT NULL DEFAULT ''",
+        "CREATE INDEX IF NOT EXISTS ix_architectures_user_id ON architectures (user_id)",
+        "CREATE INDEX IF NOT EXISTS ix_architectures_user_created ON architectures (user_id, created_at)",
+        # optimization_suggestions and requirements_input JSON columns
+        "ALTER TABLE architectures ADD COLUMN IF NOT EXISTS optimization_suggestions JSONB",
+        "ALTER TABLE architectures ADD COLUMN IF NOT EXISTS requirements_input JSONB",
+    ]
+
+    async with get_db() as db:
+        for stmt in migrations:
+            try:
+                await db.execute(text(stmt))
+            except Exception as e:
+                logger.warning(f"Migration skipped: {stmt!r} — {e}")
+
+    logger.info("Migrations complete")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan management"""
@@ -42,7 +67,11 @@ async def lifespan(app: FastAPI):
     try:
         await init_db()
         logger.info("Database initialized")
-        
+
+        from app.core.database import DatabaseManager, get_db
+        await DatabaseManager.create_all_tables()
+        await _run_migrations()
+
         # Test Nova connection
         health = await nova_client.health_check()
         logger.info(f"Nova health check: {health}")
@@ -209,7 +238,6 @@ async def health_check():
             "database": db_healthy,
             "nova_lite": nova_health.get('nova_lite', False),
             "nova_micro": nova_health.get('nova_micro', False),
-            "nova_canvas": nova_health.get('nova_canvas', False)
         },
         "environment": settings.ENVIRONMENT,
         "debug": settings.DEBUG

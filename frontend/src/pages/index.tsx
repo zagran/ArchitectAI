@@ -1,20 +1,20 @@
 import { useState } from 'react';
 import Head from 'next/head';
+import { useRouter } from 'next/router';
 import { motion } from 'framer-motion';
 import Layout from '@/components/Layout/Layout';
 import AuthForm from '@/components/Auth/AuthForm';
 import RequirementsInputComponent from '@/components/RequirementsInput/RequirementsInput';
-import ArchitectureViewer from '@/components/ArchitectureViewer/ArchitectureViewer';
 import { useAuth } from '@/hooks/useAPI';
-import { RequirementsInput, ArchitectureResponse } from '@/types';
+import { RequirementsInput } from '@/types';
 import APIClient from '@/lib/api';
 
-type Step = 'requirements' | 'generating' | 'results';
+type Step = 'requirements' | 'generating';
 
 export default function Home() {
+  const router = useRouter();
   const { isAuthenticated, user, loading, login, register, logout } = useAuth();
   const [currentStep, setCurrentStep] = useState<Step>('requirements');
-  const [architectureResult, setArchitectureResult] = useState<ArchitectureResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const handleRequirementsSubmit = async (data: RequirementsInput) => {
@@ -28,18 +28,11 @@ export default function Home() {
         throw new Error('Architecture generation failed. Please try again.');
       }
 
-      setArchitectureResult(result);
-      setCurrentStep('results');
+      router.push(`/architecture/${result.architecture.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Architecture generation failed');
       setCurrentStep('requirements');
     }
-  };
-
-  const handleStartOver = () => {
-    setCurrentStep('requirements');
-    setArchitectureResult(null);
-    setError(null);
   };
 
   if (loading) {
@@ -141,20 +134,6 @@ export default function Home() {
               </div>
             )}
 
-            {currentStep === 'results' && architectureResult && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5 }}
-              >
-                <ArchitectureViewer
-                  architecture={architectureResult.architecture!}
-                  costAnalysis={architectureResult.costAnalysis}
-                  optimizations={architectureResult.optimizationSuggestions}
-                  onStartOver={handleStartOver}
-                />
-              </motion.div>
-            )}
           </div>
         </div>
       )}

@@ -86,9 +86,9 @@ export default function CostBreakdown({ costAnalysis }: CostBreakdownProps) {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-secondary-600">Optimization Potential</p>
-              <p className="text-3xl font-bold text-warning-600">
-                {costAnalysis.componentBreakdown.reduce((sum, comp) => sum + (comp.optimizationPotential || 0), 0) / costAnalysis.componentBreakdown.length}%
-              </p>
+                <p className="text-3xl font-bold text-warning-600">
+                {(costAnalysis.componentBreakdown.reduce((sum, comp) => sum + (comp.optimizationPotential || 0), 0) / costAnalysis.componentBreakdown.length).toFixed(1)}%
+                </p>
             </div>
             <div className="p-3 bg-warning-100 rounded-full">
               <ArrowTrendingDownIcon className="w-6 h-6 text-warning-600" />

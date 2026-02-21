@@ -3,14 +3,16 @@ Architecture API Routes
 REST endpoints for architecture generation and management
 """
 
-import logging
-from typing import List, Optional, Dict, Any
-from uuid import uuid4
-import base64
+import uuid
+from datetime import datetime
+from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from fastapi.responses import JSONResponse
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
+from app.core.database import get_db_session
 from app.core.logging import get_logger
 from app.core.security import get_current_user_id, get_optional_current_user_id
 from app.services.architecture_generator import architecture_generator
@@ -22,8 +24,9 @@ from app.models.architecture_models import (
     ArchitectureResponse,
     UsagePatterns,
     CostAnalysis,
-    ErrorResponse
+    OptimizationSuggestion,
 )
+from app.models.database_models import Architecture as ArchitectureDB
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -32,37 +35,30 @@ router = APIRouter()
 @router.post("/generate", response_model=ArchitectureResponse)
 async def generate_architecture(
     requirements: RequirementsInput,
-    user_id: str = Depends(get_current_user_id)
+    user_id: str = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db_session)
 ):
     """
-    Generate complete system architecture from requirements
-    
-    This endpoint orchestrates the full architecture generation process:
-    1. Extract structured requirements using Nova 2 Lite
-    2. Generate architecture using architectural patterns
-    3. Calculate cost analysis with real AWS pricing
-    4. Generate optimization suggestions using Nova Micro
-    5. Create implementation roadmap
+    Generate complete system architecture from requirements and persist to DB.
     """
     try:
         logger.info("Architecture generation requested",
-                   user_id=user_id,
-                   description_length=len(requirements.description))
-        logger.debug(f"Received requirements: {requirements}") 
-        
+                    user_id=user_id,
+                    description_length=len(requirements.description))
+
         start_time = datetime.now()
-        
+
         # Generate complete architecture
-        architecture, extracted_requirements, metadata = await architecture_generator.generate_complete_architecture(
+        architecture, _extracted_requirements, metadata = await architecture_generator.generate_complete_architecture(
             requirements, user_id
         )
-        
+
         # Calculate cost analysis
-        usage_patterns = UsagePatterns()  # Use default usage patterns
+        usage_patterns = UsagePatterns()
         cost_analysis = await cost_calculator.calculate_architecture_cost(
             architecture, usage_patterns
         )
-        
+
         # Get optimization suggestions via Nova Micro
         try:
             optimization_suggestions = await nova_client.suggest_optimizations(
@@ -76,6 +72,20 @@ async def generate_architecture(
 
         processing_time = int((datetime.now() - start_time).total_seconds() * 1000)
 
+        # Persist to database
+        db_arch = ArchitectureDB(
+            id=uuid.UUID(architecture.id),
+            user_id=user_id,
+            name=architecture.name,
+            architecture_spec=architecture.model_dump(mode="json"),
+            requirements_input=requirements.model_dump(mode="json"),
+            cost_analysis=cost_analysis.model_dump(mode="json") if cost_analysis else None,
+            optimization_suggestions=[o.model_dump(mode="json") for o in optimization_suggestions],
+            nova_reasoning=metadata,
+        )
+        db.add(db_arch)
+        await db.commit()
+
         # Get Nova usage stats
         nova_usage = nova_client.get_usage_summary()
 
@@ -88,19 +98,16 @@ async def generate_architecture(
             processing_time_ms=processing_time,
             nova_usage=nova_usage
         )
-        
+
         logger.info("Architecture generation completed successfully",
-                   user_id=user_id,
-                   architecture_id=architecture.id,
-                   processing_time_ms=processing_time)
-        
-        return response
-        
-    except Exception as e:
-        logger.error("Architecture generation failed",
                     user_id=user_id,
-                    error=str(e))
-        
+                    architecture_id=architecture.id,
+                    processing_time_ms=processing_time)
+
+        return response
+
+    except Exception as e:
+        logger.error("Architecture generation failed", user_id=user_id, error=str(e))
         return ArchitectureResponse(
             success=False,
             processing_time_ms=0,
@@ -112,53 +119,35 @@ async def generate_architecture(
 async def generate_diagram(
     architecture_id: str,
     style: str = "aws-professional",
-    user_id: str = Depends(get_current_user_id)
+    user_id: str = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db_session)
 ):
     """
-    Generate visual diagram for existing architecture using Nova Canvas
+    Generate visual diagram for existing architecture using the diagram generator.
     """
     try:
-        # In production, fetch architecture from database
-        # For now, create a sample architecture
-        from app.models.architecture_models import ArchitectureComponent, ServiceType, DeploymentModel
-        
-        architecture = SystemArchitecture(
-            id=architecture_id,
-            name="Sample Architecture",
-            components=[
-                ArchitectureComponent(
-                    name="Load Balancer",
-                    service_type=ServiceType.ALB
-                ),
-                ArchitectureComponent(
-                    name="Web Servers",
-                    service_type=ServiceType.EC2
-                ),
-                ArchitectureComponent(
-                    name="Database",
-                    service_type=ServiceType.RDS
-                )
-            ],
-            connections=[
-                {"from": "Load Balancer", "to": "Web Servers"},
-                {"from": "Web Servers", "to": "Database"}
-            ],
-            deployment_model=DeploymentModel.AUTO_SCALING
-        )
-        
+        row = await db.get(ArchitectureDB, uuid.UUID(architecture_id))
+        if not row or row.user_id != user_id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Architecture not found")
+
+        architecture = SystemArchitecture.model_validate(row.architecture_spec)
         diagram_data = await architecture_generator.generate_diagram(architecture, style)
-        
+
+        # Persist diagram metadata back to the row
+        row.diagram_metadata = diagram_data.get("metadata")
+        await db.commit()
+
         return JSONResponse(content={
             "success": True,
             "diagram": diagram_data,
             "architecture_id": architecture_id,
             "style": style
         })
-        
+
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error("Diagram generation failed",
-                    architecture_id=architecture_id,
-                    error=str(e))
+        logger.error("Diagram generation failed", architecture_id=architecture_id, error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Diagram generation failed"
@@ -174,38 +163,34 @@ async def analyze_diagram(
     Analyze uploaded architecture diagram using Nova multimodal capabilities
     """
     try:
-        # Validate file type
         if not file.content_type.startswith('image/'):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="File must be an image"
             )
-        
-        # Read image data
+
         image_data = await file.read()
-        
-        # Validate file size (max 10MB)
+
         if len(image_data) > 10 * 1024 * 1024:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="File size must be less than 10MB"
             )
-        
+
         logger.info("Analyzing uploaded diagram",
-                   filename=file.filename,
-                   size_bytes=len(image_data),
-                   user_id=user_id)
-        
-        # Analyze diagram using Nova
+                    filename=file.filename,
+                    size_bytes=len(image_data),
+                    user_id=user_id)
+
         analysis = await architecture_generator.analyze_existing_diagram(image_data)
-        
+
         return JSONResponse(content={
             "success": True,
             "analysis": analysis,
             "filename": file.filename,
             "size_bytes": len(image_data)
         })
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -219,30 +204,33 @@ async def analyze_diagram(
 @router.get("/{architecture_id}")
 async def get_architecture(
     architecture_id: str,
-    user_id: str = Depends(get_current_user_id)
+    user_id: str = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db_session)
 ):
-    """Get architecture by ID"""
+    """Get architecture by ID from database"""
     try:
-        # In production, fetch from database
-        # For now, return a sample architecture
-        architecture = {
-            "id": architecture_id,
-            "name": "Sample Architecture",
-            "created_at": "2026-01-01T00:00:00Z",
-            "user_id": user_id,
-            "components": [],
-            "estimated_cost": 500.0
-        }
-        
-        return JSONResponse(content={
-            "success": True,
-            "architecture": architecture
-        })
-        
+        row = await db.get(ArchitectureDB, uuid.UUID(architecture_id))
+        if not row or row.user_id != user_id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Architecture not found")
+
+        architecture = SystemArchitecture.model_validate(row.architecture_spec)
+        cost = CostAnalysis.model_validate(row.cost_analysis) if row.cost_analysis else None
+        opts = [OptimizationSuggestion.model_validate(o) for o in (row.optimization_suggestions or [])]
+
+        return ArchitectureResponse(
+            success=True,
+            architecture=architecture,
+            cost_analysis=cost,
+            optimization_suggestions=opts,
+            processing_time_ms=0,
+            nova_usage={},
+            requirements_input=row.requirements_input,
+        )
+
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error("Failed to fetch architecture",
-                    architecture_id=architecture_id,
-                    error=str(e))
+        logger.error("Failed to fetch architecture", architecture_id=architecture_id, error=str(e))
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Architecture not found"
@@ -252,45 +240,30 @@ async def get_architecture(
 @router.get("/{architecture_id}/cost")
 async def get_cost_analysis(
     architecture_id: str,
-    user_id: str = Depends(get_current_user_id)
+    user_id: str = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db_session)
 ):
     """Get detailed cost analysis for architecture"""
     try:
-        # In production, fetch architecture and calculate/cache costs
+        row = await db.get(ArchitectureDB, uuid.UUID(architecture_id))
+        if not row or row.user_id != user_id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Architecture not found")
+
+        architecture = SystemArchitecture.model_validate(row.architecture_spec)
         usage_patterns = UsagePatterns()
-        
-        # For demo, create sample architecture
-        from app.models.architecture_models import ArchitectureComponent, ServiceType, DeploymentModel
-        
-        architecture = SystemArchitecture(
-            id=architecture_id,
-            name="Sample Architecture",
-            components=[
-                ArchitectureComponent(name="Load Balancer", service_type=ServiceType.ALB),
-                ArchitectureComponent(name="Web Servers", service_type=ServiceType.EC2),
-                ArchitectureComponent(name="Database", service_type=ServiceType.RDS)
-            ],
-            connections=[],
-            deployment_model=DeploymentModel.AUTO_SCALING
-        )
-        
-        cost_analysis = await cost_calculator.calculate_architecture_cost(
-            architecture, usage_patterns
-        )
-        
-        # Get cost trends
+        cost_analysis = await cost_calculator.calculate_architecture_cost(architecture, usage_patterns)
         cost_trends = await cost_calculator.get_cost_trends(architecture_id)
-        
+
         return JSONResponse(content={
             "success": True,
-            "cost_analysis": cost_analysis.model_dump(),
+            "cost_analysis": cost_analysis.model_dump(mode="json"),
             "cost_trends": cost_trends
         })
-        
+
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error("Cost analysis failed",
-                    architecture_id=architecture_id,
-                    error=str(e))
+        logger.error("Cost analysis failed", architecture_id=architecture_id, error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Cost analysis failed"
@@ -301,48 +274,35 @@ async def get_cost_analysis(
 async def optimize_architecture(
     architecture_id: str,
     usage_patterns: UsagePatterns,
-    user_id: str = Depends(get_current_user_id)
+    user_id: str = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db_session)
 ):
     """Get optimization suggestions for architecture using Nova Micro"""
     try:
-        # In production, fetch architecture from database
-        from app.models.architecture_models import ArchitectureComponent, ServiceType, DeploymentModel
-        
-        architecture = SystemArchitecture(
-            id=architecture_id,
-            name="Sample Architecture",
-            components=[
-                ArchitectureComponent(name="Load Balancer", service_type=ServiceType.ALB),
-                ArchitectureComponent(name="Web Servers", service_type=ServiceType.EC2),
-                ArchitectureComponent(name="Database", service_type=ServiceType.RDS)
-            ],
-            connections=[],
-            deployment_model=DeploymentModel.AUTO_SCALING
-        )
-        
-        # Calculate current costs
-        cost_analysis = await cost_calculator.calculate_architecture_cost(
-            architecture, usage_patterns
-        )
-        
-        # Get optimization suggestions using Nova
+        row = await db.get(ArchitectureDB, uuid.UUID(architecture_id))
+        if not row or row.user_id != user_id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Architecture not found")
+
+        architecture = SystemArchitecture.model_validate(row.architecture_spec)
+        cost_analysis = await cost_calculator.calculate_architecture_cost(architecture, usage_patterns)
+
         optimizations = await nova_client.suggest_optimizations(
             architecture=architecture,
             cost_breakdown=[cost.model_dump() for cost in cost_analysis.component_breakdown],
             usage_patterns=usage_patterns.model_dump()
         )
-        
+
         return JSONResponse(content={
             "success": True,
-            "optimizations": [opt.model_dump() for opt in optimizations],
+            "optimizations": [opt.model_dump(mode="json") for opt in optimizations],
             "current_cost": cost_analysis.total_monthly_cost,
             "architecture_id": architecture_id
         })
-        
+
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error("Architecture optimization failed",
-                    architecture_id=architecture_id,
-                    error=str(e))
+        logger.error("Architecture optimization failed", architecture_id=architecture_id, error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Architecture optimization failed"
@@ -352,37 +312,28 @@ async def optimize_architecture(
 @router.post("/{architecture_id}/validate")
 async def validate_architecture(
     architecture_id: str,
-    user_id: str = Depends(get_current_user_id)
+    user_id: str = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db_session)
 ):
     """Validate architecture against AWS best practices"""
     try:
-        # In production, fetch architecture from database
-        from app.models.architecture_models import ArchitectureComponent, ServiceType, DeploymentModel
-        
-        architecture = SystemArchitecture(
-            id=architecture_id,
-            name="Sample Architecture",
-            components=[
-                ArchitectureComponent(name="Load Balancer", service_type=ServiceType.ALB),
-                ArchitectureComponent(name="Web Servers", service_type=ServiceType.EC2),
-                ArchitectureComponent(name="Database", service_type=ServiceType.RDS)
-            ],
-            connections=[],
-            deployment_model=DeploymentModel.AUTO_SCALING
-        )
-        
+        row = await db.get(ArchitectureDB, uuid.UUID(architecture_id))
+        if not row or row.user_id != user_id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Architecture not found")
+
+        architecture = SystemArchitecture.model_validate(row.architecture_spec)
         validation_results = await architecture_generator.validate_architecture(architecture)
-        
+
         return JSONResponse(content={
             "success": True,
             "validation": validation_results,
             "architecture_id": architecture_id
         })
-        
+
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error("Architecture validation failed",
-                    architecture_id=architecture_id,
-                    error=str(e))
+        logger.error("Architecture validation failed", architecture_id=architecture_id, error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Architecture validation failed"
@@ -393,30 +344,34 @@ async def validate_architecture(
 async def list_architectures(
     user_id: str = Depends(get_current_user_id),
     limit: int = 20,
-    offset: int = 0
+    offset: int = 0,
+    db: AsyncSession = Depends(get_db_session)
 ):
-    """List user's architectures"""
+    """List user's architectures from database"""
     try:
-        # In production, fetch from database with pagination
-        architectures = [
-            {
-                "id": str(uuid4()),
-                "name": "E-commerce Platform",
-                "created_at": "2026-01-01T00:00:00Z",
-                "estimated_cost": 450.0,
-                "components_count": 5,
-                "status": "completed"
-            },
-            {
-                "id": str(uuid4()),
-                "name": "Data Pipeline",
-                "created_at": "2026-01-02T00:00:00Z",
-                "estimated_cost": 780.0,
-                "components_count": 8,
-                "status": "completed"
-            }
-        ]
-        
+        stmt = (
+            select(ArchitectureDB)
+            .where(ArchitectureDB.user_id == user_id)
+            .order_by(ArchitectureDB.created_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        result = await db.execute(stmt)
+        rows = result.scalars().all()
+
+        architectures = []
+        for row in rows:
+            spec = row.architecture_spec or {}
+            cost = row.cost_analysis or {}
+            architectures.append({
+                "id": str(row.id),
+                "name": row.name,
+                "created_at": row.created_at.isoformat(),
+                "estimated_monthly_cost": cost.get("total_monthly_cost"),
+                "components_count": len(spec.get("components", [])),
+                "deployment_model": spec.get("deployment_model", ""),
+            })
+
         return JSONResponse(content={
             "success": True,
             "architectures": architectures,
@@ -424,7 +379,7 @@ async def list_architectures(
             "limit": limit,
             "offset": offset
         })
-        
+
     except Exception as e:
         logger.error("Failed to list architectures", error=str(e))
         raise HTTPException(
@@ -436,31 +391,31 @@ async def list_architectures(
 @router.delete("/{architecture_id}")
 async def delete_architecture(
     architecture_id: str,
-    user_id: str = Depends(get_current_user_id)
+    user_id: str = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db_session)
 ):
-    """Delete architecture"""
+    """Delete architecture from database"""
     try:
-        # In production, delete from database and associated resources
-        
-        logger.info("Architecture deleted",
-                   architecture_id=architecture_id,
-                   user_id=user_id)
-        
+        row = await db.get(ArchitectureDB, uuid.UUID(architecture_id))
+        if not row or row.user_id != user_id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Architecture not found")
+
+        await db.delete(row)
+        await db.commit()
+
+        logger.info("Architecture deleted", architecture_id=architecture_id, user_id=user_id)
+
         return JSONResponse(content={
             "success": True,
             "message": "Architecture deleted successfully",
             "architecture_id": architecture_id
         })
-        
+
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error("Failed to delete architecture",
-                    architecture_id=architecture_id,
-                    error=str(e))
+        logger.error("Failed to delete architecture", architecture_id=architecture_id, error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete architecture"
         )
-
-
-# Import datetime for the generate_architecture function
-from datetime import datetime

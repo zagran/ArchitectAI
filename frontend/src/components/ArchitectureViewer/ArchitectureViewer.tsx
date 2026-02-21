@@ -304,7 +304,7 @@ function ArchitectureOverview({
               </div>
               <p className="text-sm text-warning-700 mt-1">
                 Potential savings of up to{' '}
-                {Math.max(...optimizations.map(o => o.estimatedSavingsPercent || 0))}%
+                {Math.round(Math.max(...optimizations.map(o => o.estimatedSavingsPercent || 0)))}%
               </p>
             </div>
           )}

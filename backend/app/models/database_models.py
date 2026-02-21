@@ -66,29 +66,33 @@ class Architecture(Base):
     __tablename__ = "architectures"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=False)
+    project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=True)
+    user_id = Column(String(36), nullable=False, index=True)
     name = Column(String(255), nullable=False)
     architecture_spec = Column(JSON, nullable=False)
+    requirements_input = Column(JSON, nullable=True)
     diagram_url = Column(String(500), nullable=True)
     diagram_metadata = Column(JSON, nullable=True)
     cost_analysis = Column(JSON, nullable=True)
+    optimization_suggestions = Column(JSON, nullable=True)
     implementation_plan = Column(JSON, nullable=True)
     performance_insights = Column(JSON, nullable=True)
     nova_reasoning = Column(JSON, nullable=True)
     version = Column(Integer, default=1, nullable=False)
     is_current = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime(timezone=True), default=func.now(), nullable=False)
-    
+
     # Relationships
     project = relationship("Project", back_populates="architectures")
     cost_calculations = relationship("CostCalculation", back_populates="architecture", cascade="all, delete-orphan")
     infrastructure_code = relationship("InfrastructureCode", back_populates="architecture", cascade="all, delete-orphan")
     feedback = relationship("ArchitectureFeedback", back_populates="architecture", cascade="all, delete-orphan")
-    
+
     # Indexes
     __table_args__ = (
         Index('ix_architectures_project_current', 'project_id', 'is_current'),
         Index('ix_architectures_created_at', 'created_at'),
+        Index('ix_architectures_user_created', 'user_id', 'created_at'),
     )
 
 

@@ -195,7 +195,7 @@ export default function OptimizationsList({ optimizations }: OptimizationsListPr
                   
                   {optimization.estimatedSavingsPercent && (
                     <div className="mt-2 text-sm text-success-600 font-medium">
-                      Potential savings: {optimization.estimatedSavingsPercent}%
+                      Potential savings: {Math.round(optimization.estimatedSavingsPercent)}%
                     </div>
                   )}
                 </div>
@@ -273,7 +273,7 @@ function OptimizationCategory({
                 <div className="flex items-center">
                   <CurrencyDollarIcon className="h-5 w-5 text-success-600 mr-2" />
                   <span className="text-sm font-medium text-success-800">
-                    Estimated savings: {optimization.estimatedSavingsPercent}%
+                    Estimated savings: {Math.round(optimization.estimatedSavingsPercent)}%
                     {optimization.estimatedSavingsDollars && (
                       <span className="ml-2">
                         (${optimization.estimatedSavingsDollars.toFixed(0)}/month)

@@ -349,8 +349,10 @@ class ArchitectureResponse(BaseModel):
     optimization_suggestions: List[OptimizationSuggestion] = Field(default_factory=list)
     implementation_roadmap: Optional[ImplementationRoadmap] = Field(default=None)
     processing_time_ms: int = Field(..., description="Processing time in milliseconds")
-    nova_usage: Dict[str, Any] = Field(default_factory=dict, 
+    nova_usage: Dict[str, Any] = Field(default_factory=dict,
                                      description="Nova API usage statistics")
+    requirements_input: Optional[Dict[str, Any]] = Field(default=None,
+                                                         description="Original user requirements")
 
 
 class   ErrorResponse(BaseModel):

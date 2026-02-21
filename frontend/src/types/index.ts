@@ -206,6 +206,7 @@ export interface ArchitectureResponse {
   implementationRoadmap?: ImplementationRoadmap;
   processingTimeMs: number;
   novaUsage: Record<string, any>;
+  requirementsInput?: RequirementsInput;
 }
 
 export interface Project {
@@ -234,6 +235,15 @@ export interface ArchitectureTemplate {
   createdBy?: string;
   createdAt: string;
   tags: string[];
+}
+
+export interface ArchitectureListItem {
+  id: string;
+  name: string;
+  createdAt: string;
+  estimatedMonthlyCost?: number;
+  componentsCount: number;
+  deploymentModel: string;
 }
 
 export interface UsagePatterns {

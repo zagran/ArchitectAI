@@ -28,8 +28,14 @@ export default function Layout({ children, user, isAuthenticated, onLogout }: La
           </Link>
 
           {isAuthenticated && user && (
-            <div className="flex items-center gap-x-4">
-              <span className="text-sm text-secondary-600">{user.email}</span>
+            <div className="flex items-center gap-x-6">
+              <Link
+                href="/history"
+                className="text-sm font-medium text-secondary-600 hover:text-secondary-900 transition-colors"
+              >
+                History
+              </Link>
+              <span className="text-sm text-secondary-400">{user.email}</span>
               <button
                 onClick={onLogout}
                 className="text-sm font-semibold text-secondary-600 hover:text-secondary-900 transition-colors"
