@@ -29,6 +29,46 @@ from app.models.architecture_models import (
 logger = get_logger(__name__)
 
 
+async def _persist_nova_log(
+    operation: str,
+    model: str,
+    prompt: str,
+    response: Optional[str],
+    duration_ms: int,
+    success: bool,
+    user_id: Optional[str] = None,
+    arch_id: Optional[str] = None,
+    error_message: Optional[str] = None,
+) -> None:
+    """Write a Nova invocation log row to the DB (fire-and-forget)."""
+    try:
+        import uuid as _uuid
+        from app.core.database import get_db
+        from app.models.database_models import NovaLog
+
+        arch_uuid = None
+        if arch_id:
+            try:
+                arch_uuid = _uuid.UUID(arch_id)
+            except (ValueError, AttributeError):
+                pass
+
+        async with get_db() as db:
+            db.add(NovaLog(
+                user_id=user_id,
+                architecture_id=arch_uuid,
+                operation=operation,
+                model=model,
+                prompt=prompt,
+                response=response,
+                duration_ms=duration_ms,
+                success=success,
+                error_message=error_message,
+            ))
+    except Exception as exc:
+        logger.warning(f"Failed to write nova log: {exc}")
+
+
 class NovaAPIUsage(BaseModel):
     """Track Nova API usage for monitoring and optimization"""
     model_name: str
@@ -95,10 +135,12 @@ class NovaClient:
             raise
 
     async def extract_requirements(
-        self, 
-        text: str, 
+        self,
+        text: str,
         documents: List[bytes] = None,
-        images: List[bytes] = None
+        images: List[bytes] = None,
+        log_user_id: Optional[str] = None,
+        log_arch_id: Optional[str] = None,
     ) -> ArchitectureRequirements:
         """
         Extract structured requirements from text, documents, and images using Nova 2 Lite
@@ -115,9 +157,12 @@ class NovaClient:
             response = await self._invoke_nova_lite(
                 prompt=prompt,
                 max_tokens=3000,
-                temperature=0.2
+                temperature=0.2,
+                _log_operation="requirements_extraction",
+                _log_user_id=log_user_id,
+                _log_arch_id=log_arch_id,
             )
-            
+
             # Parse structured response
             requirements = self._parse_requirements_response(response)
             
@@ -137,10 +182,12 @@ class NovaClient:
             raise
 
     async def design_architecture(
-        self, 
+        self,
         requirements: ArchitectureRequirements,
         patterns: List[Dict] = None,
-        constraints: Dict = None
+        constraints: Dict = None,
+        log_user_id: Optional[str] = None,
+        log_arch_id: Optional[str] = None,
     ) -> SystemArchitecture:
         """
         Design complete system architecture using Nova 2 Lite's advanced reasoning
@@ -159,6 +206,9 @@ class NovaClient:
                 system_prompt=system_prompt,
                 max_tokens=8192,
                 temperature=0.3,
+                _log_operation="architecture_design",
+                _log_user_id=log_user_id,
+                _log_arch_id=log_arch_id,
             )
             logger.debug(f"Nova architecture design raw response:\n{response}")
 
@@ -182,7 +232,9 @@ class NovaClient:
         self,
         architecture: SystemArchitecture,
         cost_breakdown: List[Dict],
-        usage_patterns: Dict
+        usage_patterns: Dict,
+        log_user_id: Optional[str] = None,
+        log_arch_id: Optional[str] = None,
     ) -> List[OptimizationSuggestion]:
         """
         Generate optimization suggestions using Nova Micro for fast responses
@@ -201,7 +253,10 @@ class NovaClient:
             response = await self._invoke_nova_lite(
                 prompt=optimization_prompt,
                 max_tokens=3000,
-                temperature=0.4
+                temperature=0.4,
+                _log_operation="optimization_suggestions",
+                _log_user_id=log_user_id,
+                _log_arch_id=log_arch_id,
             )
             
             # Parse optimization suggestions
@@ -310,8 +365,13 @@ class NovaClient:
         max_tokens: int = 2000,
         temperature: float = 0.3,
         system_prompt: Optional[str] = None,
+        _log_operation: str = "",
+        _log_user_id: Optional[str] = None,
+        _log_arch_id: Optional[str] = None,
     ) -> str:
         """Invoke Nova 2 Lite model for text generation"""
+        _t0 = datetime.now()
+        _log_prompt = (f"[SYSTEM]\n{system_prompt}\n\n[USER]\n{prompt}") if system_prompt else prompt
         try:
             body: Dict[str, Any] = {
                 'messages': [{"role": "user", "content": [{"text": prompt}]}],
@@ -332,15 +392,56 @@ class NovaClient:
             )
 
             response_body = json.loads(response['body'].read())
-            return response_body['output']['message']['content'][0]['text']
-            
+            text = response_body['output']['message']['content'][0]['text']
+
+            if _log_operation:
+                _dur = int((datetime.now() - _t0).total_seconds() * 1000)
+                asyncio.create_task(_persist_nova_log(
+                    operation=_log_operation,
+                    model=self.model_configs['nova_lite'].model_id,
+                    prompt=_log_prompt,
+                    response=text,
+                    duration_ms=_dur,
+                    success=True,
+                    user_id=_log_user_id,
+                    arch_id=_log_arch_id,
+                ))
+
+            return text
+
         except (ClientError, BotoCoreError) as e:
+            if _log_operation:
+                _dur = int((datetime.now() - _t0).total_seconds() * 1000)
+                asyncio.create_task(_persist_nova_log(
+                    operation=_log_operation,
+                    model=self.model_configs['nova_lite'].model_id,
+                    prompt=_log_prompt,
+                    response=None,
+                    duration_ms=_dur,
+                    success=False,
+                    user_id=_log_user_id,
+                    arch_id=_log_arch_id,
+                    error_message=str(e),
+                ))
             logger.error(f"Nova Lite API error: {str(e)}")
             raise
         except KeyError as e:
             logger.error(f"Nova Lite response parsing error: {str(e)}")
             raise
         except Exception as e:
+            if _log_operation:
+                _dur = int((datetime.now() - _t0).total_seconds() * 1000)
+                asyncio.create_task(_persist_nova_log(
+                    operation=_log_operation,
+                    model=self.model_configs['nova_lite'].model_id,
+                    prompt=_log_prompt,
+                    response=None,
+                    duration_ms=_dur,
+                    success=False,
+                    user_id=_log_user_id,
+                    arch_id=_log_arch_id,
+                    error_message=str(e),
+                ))
             logger.error(f"Nova Lite invocation error: {str(e)}")
             raise
 
@@ -380,8 +481,17 @@ class NovaClient:
             logger.error(f"Nova Lite multimodal invocation error: {str(e)}")
             raise
 
-    async def _invoke_nova_micro(self, prompt: str, max_tokens: int = 1000, temperature: float = 0.4) -> str:
+    async def _invoke_nova_micro(
+        self,
+        prompt: str,
+        max_tokens: int = 1000,
+        temperature: float = 0.4,
+        _log_operation: str = "",
+        _log_user_id: Optional[str] = None,
+        _log_arch_id: Optional[str] = None,
+    ) -> str:
         """Invoke Nova Micro for fast responses"""
+        _t0 = datetime.now()
         try:
             response = await asyncio.to_thread(
                 self.bedrock_client.invoke_model,
@@ -398,9 +508,37 @@ class NovaClient:
             )
 
             response_body = json.loads(response['body'].read())
-            return response_body['output']['message']['content'][0]['text']
-            
+            text = response_body['output']['message']['content'][0]['text']
+
+            if _log_operation:
+                _dur = int((datetime.now() - _t0).total_seconds() * 1000)
+                asyncio.create_task(_persist_nova_log(
+                    operation=_log_operation,
+                    model=self.model_configs['nova_micro'].model_id,
+                    prompt=prompt,
+                    response=text,
+                    duration_ms=_dur,
+                    success=True,
+                    user_id=_log_user_id,
+                    arch_id=_log_arch_id,
+                ))
+
+            return text
+
         except Exception as e:
+            if _log_operation:
+                _dur = int((datetime.now() - _t0).total_seconds() * 1000)
+                asyncio.create_task(_persist_nova_log(
+                    operation=_log_operation,
+                    model=self.model_configs['nova_micro'].model_id,
+                    prompt=prompt,
+                    response=None,
+                    duration_ms=_dur,
+                    success=False,
+                    user_id=_log_user_id,
+                    arch_id=_log_arch_id,
+                    error_message=str(e),
+                ))
             logger.error(f"Nova Micro invocation error: {str(e)}")
             raise
 

@@ -233,6 +233,30 @@ class UserSession(Base):
     )
 
 
+class NovaLog(Base):
+    """Nova API call logs — prompt + response for every Bedrock invocation"""
+    __tablename__ = "nova_logs"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(String(36), nullable=True)
+    architecture_id = Column(UUID(as_uuid=True), nullable=True)
+    operation = Column(String(100), nullable=False)
+    model = Column(String(100), nullable=False)
+    prompt = Column(Text, nullable=False)
+    response = Column(Text, nullable=True)
+    duration_ms = Column(Integer, nullable=False, default=0)
+    success = Column(Boolean, nullable=False, default=True)
+    error_message = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index('ix_nova_logs_user_id', 'user_id'),
+        Index('ix_nova_logs_architecture_id', 'architecture_id'),
+        Index('ix_nova_logs_operation', 'operation'),
+        Index('ix_nova_logs_created_at', 'created_at'),
+    )
+
+
 class AuditLog(Base):
     """Audit log for tracking important actions"""
     __tablename__ = "audit_logs"

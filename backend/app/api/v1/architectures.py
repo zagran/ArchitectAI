@@ -64,7 +64,9 @@ async def generate_architecture(
             optimization_suggestions = await nova_client.suggest_optimizations(
                 architecture=architecture,
                 cost_breakdown=[c.model_dump() for c in cost_analysis.component_breakdown],
-                usage_patterns=UsagePatterns().model_dump()
+                usage_patterns=UsagePatterns().model_dump(),
+                log_user_id=user_id,
+                log_arch_id=architecture.id,
             )
         except Exception as opt_err:
             logger.warning("Optimization suggestions failed, skipping", error=str(opt_err))

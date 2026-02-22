@@ -53,18 +53,18 @@ class ArchitectureGeneratorService:
                        description_length=len(requirements_input.description))
             
             # Step 1: Extract structured requirements using Nova
-            requirements = await self._extract_requirements(requirements_input)
-            logger.info("Requirements extracted successfully", 
+            requirements = await self._extract_requirements(requirements_input, user_id=user_id)
+            logger.info("Requirements extracted successfully",
                        functional_count=len(requirements.functional_requirements),
                        non_functional_count=len(requirements.non_functional_requirements))
             logger.debug(f"Extracted requirements: {requirements}")
-            
+
             # Step 2: Select appropriate architectural patterns
             patterns = await self._select_patterns(requirements)
             logger.info(f"Selected {len(patterns)} architectural patterns")
-            
+
             # Step 3: Generate architecture using Nova with patterns
-            architecture = await self._generate_architecture(requirements, patterns, requirements_input.constraints)
+            architecture = await self._generate_architecture(requirements, patterns, requirements_input.constraints, user_id=user_id)
             logger.info("Architecture generated successfully",
                        components_count=len(architecture.components),
                        deployment_model=architecture.deployment_model)
@@ -147,12 +147,13 @@ class ArchitectureGeneratorService:
             logger.error("Diagram analysis failed", error=str(e))
             raise
 
-    async def _extract_requirements(self, requirements_input: RequirementsInput) -> ArchitectureRequirements:
+    async def _extract_requirements(self, requirements_input: RequirementsInput, user_id: Optional[str] = None) -> ArchitectureRequirements:
         """Extract structured requirements using Nova"""
         return await nova_client.extract_requirements(
             text=requirements_input.description,
             documents=[base64.b64decode(doc) for doc in (requirements_input.uploaded_docs or [])],
-            images=[base64.b64decode(img) for img in (requirements_input.diagrams or [])]
+            images=[base64.b64decode(img) for img in (requirements_input.diagrams or [])],
+            log_user_id=user_id,
         )
 
     async def _select_patterns(self, requirements: ArchitectureRequirements) -> List[Dict[str, Any]]:
@@ -194,13 +195,15 @@ class ArchitectureGeneratorService:
         self,
         requirements: ArchitectureRequirements,
         patterns: List[Dict[str, Any]],
-        constraints: Dict[str, Any]
+        constraints: Dict[str, Any],
+        user_id: Optional[str] = None,
     ) -> SystemArchitecture:
         """Generate architecture using Nova with selected patterns"""
         return await nova_client.design_architecture(
             requirements=requirements,
             patterns=patterns,
-            constraints=constraints
+            constraints=constraints,
+            log_user_id=user_id,
         )
 
     async def _enhance_architecture(
