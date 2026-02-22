@@ -193,48 +193,58 @@ class CostCalculatorService:
         component: ArchitectureComponent,
         usage_patterns: UsagePatterns
     ) -> ComponentCost:
-        """Calculate cost for individual component"""
-        
+        """Calculate cost for individual component.
+
+        Priority:
+        1. Nova's estimated_monthly_cost if positive — it was designed with real pricing in mind.
+        2. Formula-based fallback per service type.
+        """
+        service_type = component.service_type
+
         try:
-            service_type = component.service_type
-            monthly_cost = 0.0
-            cost_breakdown = {}
-            cost_drivers = []
-            
-            if service_type == ServiceType.EC2:
-                monthly_cost, cost_breakdown, cost_drivers = await self._calculate_ec2_cost(
-                    component, usage_patterns
-                )
-            elif service_type == ServiceType.RDS:
-                monthly_cost, cost_breakdown, cost_drivers = await self._calculate_rds_cost(
-                    component, usage_patterns
-                )
-            elif service_type == ServiceType.S3:
-                monthly_cost, cost_breakdown, cost_drivers = await self._calculate_s3_cost(
-                    component, usage_patterns
-                )
-            elif service_type == ServiceType.ALB:
-                monthly_cost, cost_breakdown, cost_drivers = await self._calculate_alb_cost(
-                    component, usage_patterns
-                )
-            elif service_type == ServiceType.LAMBDA:
-                monthly_cost, cost_breakdown, cost_drivers = await self._calculate_lambda_cost(
-                    component, usage_patterns
-                )
-            elif service_type == ServiceType.ELASTICACHE:
-                monthly_cost, cost_breakdown, cost_drivers = await self._calculate_elasticache_cost(
-                    component, usage_patterns
-                )
+            # Use Nova's estimate when available (it's already trained on AWS pricing)
+            if component.estimated_monthly_cost and component.estimated_monthly_cost > 0:
+                monthly_cost = component.estimated_monthly_cost
+                cost_breakdown = {"nova_estimate": round(monthly_cost, 2)}
+                cost_drivers = [
+                    f"Service type: {service_type.value}",
+                    f"Estimate provided by Nova AI based on configuration",
+                ]
             else:
-                monthly_cost, cost_breakdown, cost_drivers = await self._calculate_generic_cost(
-                    component, usage_patterns
-                )
-            
-            # Calculate optimization potential
+                # Formula-based fallback
+                if service_type == ServiceType.EC2:
+                    monthly_cost, cost_breakdown, cost_drivers = await self._calculate_ec2_cost(
+                        component, usage_patterns
+                    )
+                elif service_type == ServiceType.RDS:
+                    monthly_cost, cost_breakdown, cost_drivers = await self._calculate_rds_cost(
+                        component, usage_patterns
+                    )
+                elif service_type == ServiceType.S3:
+                    monthly_cost, cost_breakdown, cost_drivers = await self._calculate_s3_cost(
+                        component, usage_patterns
+                    )
+                elif service_type == ServiceType.ALB:
+                    monthly_cost, cost_breakdown, cost_drivers = await self._calculate_alb_cost(
+                        component, usage_patterns
+                    )
+                elif service_type == ServiceType.LAMBDA:
+                    monthly_cost, cost_breakdown, cost_drivers = await self._calculate_lambda_cost(
+                        component, usage_patterns
+                    )
+                elif service_type == ServiceType.ELASTICACHE:
+                    monthly_cost, cost_breakdown, cost_drivers = await self._calculate_elasticache_cost(
+                        component, usage_patterns
+                    )
+                else:
+                    monthly_cost, cost_breakdown, cost_drivers = await self._calculate_generic_cost(
+                        component, usage_patterns
+                    )
+
             optimization_potential = await self._calculate_optimization_potential(
                 component, monthly_cost
             )
-            
+
             return ComponentCost(
                 component_id=component.id,
                 component_name=component.name,
@@ -244,16 +254,17 @@ class CostCalculatorService:
                 cost_drivers=cost_drivers,
                 optimization_potential=optimization_potential
             )
-            
+
         except Exception as e:
             logger.error(f"Component cost calculation failed for {component.name}: {str(e)}")
+            fallback = component.estimated_monthly_cost or 50.0
             return ComponentCost(
                 component_id=component.id,
                 component_name=component.name,
                 service_type=service_type.value,
-                monthly_cost=50.0,
-                cost_breakdown={"estimate": 50.0},
-                cost_drivers=["Estimated cost due to calculation error"],
+                monthly_cost=round(fallback, 2),
+                cost_breakdown={"estimate": round(fallback, 2)},
+                cost_drivers=["Cost estimated due to calculation error"],
                 optimization_potential=10.0
             )
 
@@ -280,9 +291,11 @@ class CostCalculatorService:
         
         # Calculate monthly costs
         compute_cost = hourly_cost * avg_instances * 24 * 30
-        storage_cost = 20 * avg_instances
-        data_transfer_cost = usage_patterns.request_rate_per_second * 0.00001 * 30 * 24 * 3600
-        
+        storage_cost = 20 * avg_instances  # $1/GB/month EBS, 20 GB default
+        # Data transfer: assume avg 5 KB/request, $0.09/GB outbound
+        gb_per_month = usage_patterns.request_rate_per_second * 5 / 1024 / 1024 * 30 * 24 * 3600
+        data_transfer_cost = gb_per_month * 0.09
+
         total_cost = compute_cost + storage_cost + data_transfer_cost
         
         cost_breakdown = {
@@ -348,11 +361,12 @@ class CostCalculatorService:
         
         config = component.configuration
         storage_gb = config.get('storage_gb', 100)
+        # Requests: S3 GET $0.0004/1000, PUT $0.005/1000
         requests_per_month = usage_patterns.request_rate_per_second * 30 * 24 * 3600
-        
-        storage_cost = storage_gb * 0.023
         request_cost = (requests_per_month / 1000) * 0.0004
-        data_transfer_cost = storage_gb * 0.01
+
+        storage_cost = storage_gb * 0.023
+        data_transfer_cost = storage_gb * 0.01  # ~1% of data egressed/month
         
         total_cost = storage_cost + request_cost + data_transfer_cost
         
