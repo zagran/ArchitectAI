@@ -1,8 +1,3 @@
-"""
-Diagram Generator Service
-Generates professional AWS architecture diagrams using the diagrams library (Graphviz-backed)
-"""
-
 import asyncio
 import base64
 import importlib
@@ -16,138 +11,61 @@ from app.models.architecture_models import SystemArchitecture
 
 logger = get_logger(__name__)
 
-# Maps ServiceType values → (diagrams module path, class name)
+# Standard mapping for known services
 _SERVICE_NODE_MAP: Dict[str, Tuple[str, str]] = {
     "ec2":              ("diagrams.aws.compute",     "EC2"),
-    "ecs":              ("diagrams.aws.compute",     "ECS"),
-    "eks":              ("diagrams.aws.compute",     "EKS"),
-    "fargate":          ("diagrams.aws.compute",     "Fargate"),
     "lambda":           ("diagrams.aws.compute",     "Lambda"),
-    "batch":            ("diagrams.aws.compute",     "Batch"),
     "s3":               ("diagrams.aws.storage",     "S3"),
-    "ebs":              ("diagrams.aws.storage",     "EBS"),
-    "efs":              ("diagrams.aws.storage",     "EFS"),
     "rds":              ("diagrams.aws.database",    "RDS"),
     "aurora":           ("diagrams.aws.database",    "Aurora"),
     "dynamodb":         ("diagrams.aws.database",    "Dynamodb"),
-    "elasticache":      ("diagrams.aws.database",    "ElastiCache"),
-    "documentdb":       ("diagrams.aws.database",    "DocumentDB"),
-    "redshift":         ("diagrams.aws.database",    "Redshift"),
     "alb":              ("diagrams.aws.network",     "ALB"),
-    "nlb":              ("diagrams.aws.network",     "NLB"),
-    "cloudfront":       ("diagrams.aws.network",     "CloudFront"),
     "api_gateway":      ("diagrams.aws.network",     "APIGateway"),
-    "route53":          ("diagrams.aws.network",     "Route53"),
-    "nat_gateway":      ("diagrams.aws.network",     "NATGateway"),
-    "internet_gateway": ("diagrams.aws.network",     "InternetGateway"),
-    "transit_gateway":  ("diagrams.aws.network",     "TransitGateway"),
-    "sqs":              ("diagrams.aws.integration", "SQS"),
-    "sns":              ("diagrams.aws.integration", "SNS"),
-    "eventbridge":      ("diagrams.aws.integration", "Eventbridge"),
     "step_functions":   ("diagrams.aws.integration", "StepFunctions"),
-    "mq":               ("diagrams.aws.integration", "MQ"),
-    "kinesis":          ("diagrams.aws.analytics",   "Kinesis"),
-    "msk":              ("diagrams.aws.analytics",   "ManagedStreamingForApacheKafka"),
-    "athena":           ("diagrams.aws.analytics",   "Athena"),
-    "glue":             ("diagrams.aws.analytics",   "Glue"),
-    "opensearch":       ("diagrams.aws.analytics",   "ElasticsearchService"),
-    "iam":              ("diagrams.aws.security",    "IAM"),
-    "kms":              ("diagrams.aws.security",    "KMS"),
+    "sagemaker":        ("diagrams.aws.ml",          "Sagemaker"),
+    "polly":            ("diagrams.aws.ml",          "Polly"),
+    "cloudwatch":       ("diagrams.aws.management",  "Cloudwatch"),
     "secrets_manager":  ("diagrams.aws.security",    "SecretsManager"),
     "waf":              ("diagrams.aws.security",    "WAF"),
-    "shield":           ("diagrams.aws.security",    "Shield"),
-    "cognito":          ("diagrams.aws.security",    "Cognito"),
-    "cloudwatch":       ("diagrams.aws.management",  "Cloudwatch"),
-    "cloudtrail":       ("diagrams.aws.management",  "CloudTrail"),
-    "x_ray":            ("diagrams.aws.devtools",    "XRay"),
-    "sagemaker":        ("diagrams.aws.ml",          "Sagemaker"),
-    "codepipeline":     ("diagrams.aws.devtools",    "Codepipeline"),
-    "codebuild":        ("diagrams.aws.devtools",    "Codebuild"),
 }
 
-
-def _get_node_class(service_type: str):
-    """Return the diagrams node class for a service type, with fallback to General."""
-    entry = _SERVICE_NODE_MAP.get(service_type)
-    if entry:
-        module_path, class_name = entry
+def _get_node_class(component):
+    """Smart lookup for icons; checks service_type first, then name keywords."""
+    st = component.service_type.value if hasattr(component.service_type, "value") else str(component.service_type)
+    name_lower = component.name.lower()
+    
+    # Match by service_type or keyword in name (crucial for ServiceType.OTHER)
+    match_key = next((k for k in _SERVICE_NODE_MAP if k == st or k in name_lower), None)
+    
+    if match_key:
+        module_path, class_name = _SERVICE_NODE_MAP[match_key]
         try:
             module = importlib.import_module(module_path)
             return getattr(module, class_name)
-        except (ImportError, AttributeError) as e:
-            logger.warning(f"Could not import {module_path}.{class_name}: {e}")
-    # Fallback
-    try:
-        from diagrams.aws.general import General
-        return General
-    except ImportError:
-        from diagrams.aws.compute import EC2
-        return EC2
+        except (ImportError, AttributeError):
+            pass
 
+    from diagrams.aws.general import General
+    return General
 
 def _render_sync(architecture: SystemArchitecture, output_path: str) -> None:
-    """
-    Synchronous worker that renders the diagram using the diagrams library.
-    Components are grouped into architectural layers (Clusters) with generous spacing.
-    Intended to be called via asyncio.to_thread.
-    """
     from diagrams import Diagram, Edge, Cluster
+    from diagrams.onprem.client import Users
 
-    # Ordered layers: (display name, set of service_type values)
-    LAYERS = [
-        ("Edge / Gateway",  {"alb", "nlb", "cloudfront", "api_gateway", "route53",
-                              "internet_gateway", "transit_gateway", "nat_gateway",
-                              "waf", "shield"}),
-        ("Compute",         {"ec2", "ecs", "eks", "fargate", "lambda", "batch"}),
-        ("Messaging",       {"sqs", "sns", "kinesis", "eventbridge", "mq", "msk",
-                              "step_functions"}),
-        ("Data & Storage",  {"rds", "aurora", "dynamodb", "elasticache", "documentdb",
-                              "redshift", "s3", "ebs", "efs", "athena", "glue",
-                              "opensearch"}),
-        ("Security",        {"iam", "kms", "secrets_manager", "cognito"}),
-        ("Operations",      {"cloudwatch", "cloudtrail", "x_ray", "sagemaker",
-                              "codepipeline", "codebuild"}),
-    ]
-    all_layer_types = {t for _, types in LAYERS for t in types}
-
-    def get_st(c) -> str:
-        return c.service_type.value if hasattr(c.service_type, "value") else str(c.service_type)
+    # Categorization Sets
+    PUBLIC_TYPES = {"waf", "api_gateway", "cloudfront", "route53", "internet_gateway"}
+    COMPUTE_TYPES = {"lambda", "ec2", "ecs", "eks", "fargate", "step_functions"}
+    DATA_TYPES = {"dynamodb", "rds", "aurora", "s3", "elasticache", "redshift"}
 
     graph_attrs = {
-        "fontsize": "20",
+        "fontsize": "24",
+        "ranksep": "2.0",      # More vertical space to avoid line crossing
+        "nodesep": "1.2",      # More horizontal space
+        "splines": "spline",   # Smoother paths around nodes
+        "concentrate": "true", # Merges parallel lines
         "bgcolor": "white",
-        "pad": "0.8",          # outer padding around the whole graph
-        "ranksep": "1.2",      # vertical space between ranks
-        "nodesep": "0.8",      # horizontal space between nodes in the same rank
-        "splines": "ortho",    # clean right-angle edges
-        "concentrate": "false",
+        "compound": "true",
     }
-    node_attrs = {
-        "fontsize": "13",
-    }
-    edge_attrs = {
-        "fontsize": "11",
-        "minlen": "1",         # minimum edge length (ranks apart)
-        "color": "#555555",
-    }
-
-    # Cluster styling
-    CLOUD_CLUSTER_ATTRS  = {"bgcolor": "#E8F4F8", "margin": "40", "fontsize": "18", "style": "dashed", "penwidth": "2"}
-    LAYER_CLUSTER_ATTRS  = {"margin": "24", "fontsize": "14", "style": "rounded", "penwidth": "1.5"}
-
-    def node_label(name: str, max_width: int = 18) -> str:
-        """Wrap long names at word boundaries so they sit below the icon, not over it."""
-        words = name.split()
-        lines, current = [], ""
-        for word in words:
-            if current and len(current) + 1 + len(word) > max_width:
-                lines.append(current)
-                current = word
-            else:
-                current = f"{current} {word}".strip()
-        if current:
-            lines.append(current)
-        return "\n".join(lines)
 
     with Diagram(
         architecture.name,
@@ -155,101 +73,94 @@ def _render_sync(architecture: SystemArchitecture, output_path: str) -> None:
         show=False,
         outformat="png",
         direction="TB",
-        graph_attr=graph_attrs,
-        node_attr=node_attrs,
-        edge_attr=edge_attrs,
+        graph_attr=graph_attrs
     ):
         node_map: Dict[str, Any] = {}
 
-        # ── Internet / Users entry point (outside AWS Cloud) ──────────────
-        try:
-            from diagrams.onprem.client import Users as _UsersIcon
-            internet_node = _UsersIcon("Internet\nUsers")
-        except ImportError:
-            try:
-                from diagrams.aws.general import General as _Gen
-                internet_node = _Gen("Internet\nUsers")
-            except ImportError:
-                internet_node = None
+        # 1. External Entry Point
+        user_node = Users("End Users")
 
-        # ── AWS Cloud outer wrapper ────────────────────────────────────────
-        with Cluster("AWS Cloud", graph_attr=CLOUD_CLUSTER_ATTRS):
+        # 2. Public Zone (Services outside VPC)
+        with Cluster("Public Zone / Edge"):
+            public_comps = [c for c in architecture.components if (c.service_type.value if hasattr(c.service_type, "value") else str(c.service_type)) in PUBLIC_TYPES]
+            for comp in public_comps:
+                NodeCls = _get_node_class(comp)
+                node_map[comp.name] = NodeCls(f"{comp.name}")
 
-            # Render each non-empty layer as a Cluster
-            for layer_name, layer_types in LAYERS:
-                layer_components = [c for c in architecture.components if get_st(c) in layer_types]
-                if not layer_components:
-                    continue
-                with Cluster(layer_name, graph_attr=LAYER_CLUSTER_ATTRS):
-                    for component in layer_components:
-                        NodeClass = _get_node_class(get_st(component))
-                        node_map[component.name] = NodeClass(node_label(component.name))
+        # 3. AWS VPC Boundary
+        with Cluster("AWS VPC", graph_attr={"bgcolor": "#EBF3FB", "style": "dashed", "pencolor": "#2E73B8"}):
+            
+            with Cluster("Private Subnet (Compute)"):
+                compute_comps = [c for c in architecture.components if (c.service_type.value if hasattr(c.service_type, "value") else str(c.service_type)) in COMPUTE_TYPES]
+                for comp in compute_comps:
+                    NodeCls = _get_node_class(comp)
+                    node_map[comp.name] = NodeCls(f"{comp.name}")
 
-            # Any service type not covered by a layer goes into "Other"
-            other_components = [c for c in architecture.components if get_st(c) not in all_layer_types]
-            if other_components:
-                with Cluster("Other", graph_attr=LAYER_CLUSTER_ATTRS):
-                    for component in other_components:
-                        NodeClass = _get_node_class(get_st(component))
-                        node_map[component.name] = NodeClass(node_label(component.name))
+            with Cluster("Private Subnet (Data)"):
+                data_comps = [c for c in architecture.components if (c.service_type.value if hasattr(c.service_type, "value") else str(c.service_type)) in DATA_TYPES]
+                for comp in data_comps:
+                    NodeCls = _get_node_class(comp)
+                    node_map[comp.name] = NodeCls(f"{comp.name}")
 
-        # ── Auto-connect Users → first Edge/Gateway node ──────────────────
-        if internet_node is not None:
-            edge_types = LAYERS[0][1]  # "Edge / Gateway" types
-            entry_nodes = [
-                node_map[c.name]
-                for c in architecture.components
-                if get_st(c) in edge_types and c.name in node_map
-            ]
-            if entry_nodes:
-                internet_node >> Edge(color="#555555") >> entry_nodes[0]
+        # 4. Management & Cross-cutting Zone (Fallback for everything else)
+        with Cluster("Management & Supporting"):
+            other_comps = [c for c in architecture.components if c.name not in node_map]
+            for comp in other_comps:
+                NodeCls = _get_node_class(comp)
+                node_map[comp.name] = NodeCls(f"{comp.name}")
 
-        # Draw edges
+        # --- CONNECTIONS ---
+
+        # Smart Entry Point: Connect User to first Gateway/WAF
+        entry_candidates = [n for n in node_map if any(x in n.lower() for x in ["waf", "gateway"])]
+        if entry_candidates:
+            user_node >> Edge(color="darkblue", penwidth="2.0", minlen="2") >> node_map[entry_candidates[0]]
+
+        # Primary and Secondary Edges
         for conn in architecture.connections:
-            from_name = conn.get("from", "")
-            to_name   = conn.get("to", "")
-            protocol  = conn.get("protocol", "")
-            src = node_map.get(from_name)
-            dst = node_map.get(to_name)
-            if src is None or dst is None:
-                continue
-            if protocol:
-                src >> Edge(label=protocol) >> dst
-            else:
-                src >> dst
-
+            src_name, dst_name = conn.get("from"), conn.get("to")
+            src, dst = node_map.get(src_name), node_map.get(dst_name)
+            
+            if src and dst:
+                # Is this a "side" connection (monitoring, logs, secrets)?
+                is_cross = any(x in src_name.lower() for x in ["monitoring", "alerting", "secrets", "cloudwatch"])
+                
+                # Use Port Mapping (tailport/headport) to keep lines from crossing node centers
+                edge_style = Edge(
+                    color="#555555" if not is_cross else "#BBBBBB",
+                    style="dashed" if is_cross else "solid",
+                    weight="2" if not is_cross else "1", 
+                    constraint="true" if not is_cross else "false",
+                    tailport="s", # Exit bottom
+                    headport="n", # Enter top
+                )
+                src >> edge_style >> dst
 
 async def generate_architecture_diagram(
-    architecture: SystemArchitecture,
-    style: str = "aws-professional",
+    architecture: SystemArchitecture, 
+    style: str = "aws-professional"  # Added this back to handle the 2nd argument
 ) -> Dict[str, Any]:
-    """
-    Async public interface — generates a PNG diagram and returns base64-encoded data.
-    """
+    """Async wrapper to run rendering in a thread pool and return base64 string."""
     with tempfile.TemporaryDirectory() as tmp_dir:
         output_base = os.path.join(tmp_dir, "diagram")
-
+        
+        # Offload blocking Graphviz call to a thread
         await asyncio.to_thread(_render_sync, architecture, output_base)
-
+        
         png_path = output_base + ".png"
+        if not os.path.exists(png_path):
+            logger.error("Diagram generation failed: PNG not found.")
+            return {"error": "Generation failed"}
+
         with open(png_path, "rb") as f:
             image_data = base64.b64encode(f.read()).decode("utf-8")
-
-    logger.info(
-        "Architecture diagram rendered",
-        architecture=architecture.name,
-        style=style,
-        size_kb=len(image_data) // 1024,
-    )
 
     return {
         "image_data": image_data,
         "metadata": {
             "architecture": architecture.name,
-            "components": len(architecture.components),
-            "connections": len(architecture.connections),
-            "style": style,
-            "generator": "diagrams",
+            "total_cost": architecture.estimated_monthly_cost,
             "generated_at": datetime.now().isoformat(),
+            "style": style
         },
     }
