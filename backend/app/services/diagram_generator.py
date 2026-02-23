@@ -88,16 +88,47 @@ def _get_node_class(service_type: str):
 def _render_sync(architecture: SystemArchitecture, output_path: str) -> None:
     """
     Synchronous worker that renders the diagram using the diagrams library.
+    Components are grouped into architectural layers (Clusters) with generous spacing.
     Intended to be called via asyncio.to_thread.
     """
-    from diagrams import Diagram, Edge
+    from diagrams import Diagram, Edge, Cluster
+
+    # Ordered layers: (display name, set of service_type values)
+    LAYERS = [
+        ("Edge / Gateway",  {"alb", "nlb", "cloudfront", "api_gateway", "route53",
+                              "internet_gateway", "transit_gateway", "nat_gateway",
+                              "waf", "shield"}),
+        ("Compute",         {"ec2", "ecs", "eks", "fargate", "lambda", "batch"}),
+        ("Messaging",       {"sqs", "sns", "kinesis", "eventbridge", "mq", "msk",
+                              "step_functions"}),
+        ("Data & Storage",  {"rds", "aurora", "dynamodb", "elasticache", "documentdb",
+                              "redshift", "s3", "ebs", "efs", "athena", "glue",
+                              "opensearch"}),
+        ("Security",        {"iam", "kms", "secrets_manager", "cognito"}),
+        ("Operations",      {"cloudwatch", "cloudtrail", "x_ray", "sagemaker",
+                              "codepipeline", "codebuild"}),
+    ]
+    all_layer_types = {t for _, types in LAYERS for t in types}
+
+    def get_st(c) -> str:
+        return c.service_type.value if hasattr(c.service_type, "value") else str(c.service_type)
 
     graph_attrs = {
-        "fontsize": "13",
+        "fontsize": "20",
         "bgcolor": "white",
-        "pad": "0.5",
-        "ranksep": "0.8",
-        "nodesep": "0.5",
+        "pad": "0.8",          # outer padding around the whole graph
+        "ranksep": "1.2",      # vertical space between ranks
+        "nodesep": "0.8",      # horizontal space between nodes in the same rank
+        "splines": "ortho",    # clean right-angle edges
+        "concentrate": "false",
+    }
+    node_attrs = {
+        "fontsize": "13",
+    }
+    edge_attrs = {
+        "fontsize": "11",
+        "minlen": "1",         # minimum edge length (ranks apart)
+        "color": "#555555",
     }
 
     with Diagram(
@@ -107,29 +138,52 @@ def _render_sync(architecture: SystemArchitecture, output_path: str) -> None:
         outformat="png",
         direction="TB",
         graph_attr=graph_attrs,
+        node_attr=node_attrs,
+        edge_attr=edge_attrs,
     ):
-        # Create one node per component; keep a name→node map for edges
         node_map: Dict[str, Any] = {}
-        for component in architecture.components:
-            st = (
-                component.service_type.value
-                if hasattr(component.service_type, "value")
-                else str(component.service_type)
-            )
-            NodeClass = _get_node_class(st)
-            node_map[component.name] = NodeClass(component.name)
 
-        # Draw edges from connections
+        def node_label(name: str, max_width: int = 18) -> str:
+            """Wrap long names at word boundaries so they sit below the icon, not over it."""
+            words = name.split()
+            lines, current = [], ""
+            for word in words:
+                if current and len(current) + 1 + len(word) > max_width:
+                    lines.append(current)
+                    current = word
+                else:
+                    current = f"{current} {word}".strip()
+            if current:
+                lines.append(current)
+            return "\n".join(lines)
+
+        # Render each non-empty layer as a Cluster
+        for layer_name, layer_types in LAYERS:
+            layer_components = [c for c in architecture.components if get_st(c) in layer_types]
+            if not layer_components:
+                continue
+            with Cluster(layer_name):
+                for component in layer_components:
+                    NodeClass = _get_node_class(get_st(component))
+                    node_map[component.name] = NodeClass(node_label(component.name))
+
+        # Any service type not covered by a layer goes into "Other"
+        other_components = [c for c in architecture.components if get_st(c) not in all_layer_types]
+        if other_components:
+            with Cluster("Other"):
+                for component in other_components:
+                    NodeClass = _get_node_class(get_st(component))
+                    node_map[component.name] = NodeClass(node_label(component.name))
+
+        # Draw edges
         for conn in architecture.connections:
             from_name = conn.get("from", "")
-            to_name = conn.get("to", "")
-            protocol = conn.get("protocol", "")
-
+            to_name   = conn.get("to", "")
+            protocol  = conn.get("protocol", "")
             src = node_map.get(from_name)
             dst = node_map.get(to_name)
             if src is None or dst is None:
                 continue
-
             if protocol:
                 src >> Edge(label=protocol) >> dst
             else:
