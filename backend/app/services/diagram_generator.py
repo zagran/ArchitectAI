@@ -131,6 +131,24 @@ def _render_sync(architecture: SystemArchitecture, output_path: str) -> None:
         "color": "#555555",
     }
 
+    # Cluster styling
+    CLOUD_CLUSTER_ATTRS  = {"bgcolor": "#E8F4F8", "margin": "40", "fontsize": "18", "style": "dashed", "penwidth": "2"}
+    LAYER_CLUSTER_ATTRS  = {"margin": "24", "fontsize": "14", "style": "rounded", "penwidth": "1.5"}
+
+    def node_label(name: str, max_width: int = 18) -> str:
+        """Wrap long names at word boundaries so they sit below the icon, not over it."""
+        words = name.split()
+        lines, current = [], ""
+        for word in words:
+            if current and len(current) + 1 + len(word) > max_width:
+                lines.append(current)
+                current = word
+            else:
+                current = f"{current} {word}".strip()
+        if current:
+            lines.append(current)
+        return "\n".join(lines)
+
     with Diagram(
         architecture.name,
         filename=output_path,
@@ -143,37 +161,48 @@ def _render_sync(architecture: SystemArchitecture, output_path: str) -> None:
     ):
         node_map: Dict[str, Any] = {}
 
-        def node_label(name: str, max_width: int = 18) -> str:
-            """Wrap long names at word boundaries so they sit below the icon, not over it."""
-            words = name.split()
-            lines, current = [], ""
-            for word in words:
-                if current and len(current) + 1 + len(word) > max_width:
-                    lines.append(current)
-                    current = word
-                else:
-                    current = f"{current} {word}".strip()
-            if current:
-                lines.append(current)
-            return "\n".join(lines)
+        # ── Internet / Users entry point (outside AWS Cloud) ──────────────
+        try:
+            from diagrams.onprem.client import Users as _UsersIcon
+            internet_node = _UsersIcon("Internet\nUsers")
+        except ImportError:
+            try:
+                from diagrams.aws.general import General as _Gen
+                internet_node = _Gen("Internet\nUsers")
+            except ImportError:
+                internet_node = None
 
-        # Render each non-empty layer as a Cluster
-        for layer_name, layer_types in LAYERS:
-            layer_components = [c for c in architecture.components if get_st(c) in layer_types]
-            if not layer_components:
-                continue
-            with Cluster(layer_name):
-                for component in layer_components:
-                    NodeClass = _get_node_class(get_st(component))
-                    node_map[component.name] = NodeClass(node_label(component.name))
+        # ── AWS Cloud outer wrapper ────────────────────────────────────────
+        with Cluster("AWS Cloud", graph_attr=CLOUD_CLUSTER_ATTRS):
 
-        # Any service type not covered by a layer goes into "Other"
-        other_components = [c for c in architecture.components if get_st(c) not in all_layer_types]
-        if other_components:
-            with Cluster("Other"):
-                for component in other_components:
-                    NodeClass = _get_node_class(get_st(component))
-                    node_map[component.name] = NodeClass(node_label(component.name))
+            # Render each non-empty layer as a Cluster
+            for layer_name, layer_types in LAYERS:
+                layer_components = [c for c in architecture.components if get_st(c) in layer_types]
+                if not layer_components:
+                    continue
+                with Cluster(layer_name, graph_attr=LAYER_CLUSTER_ATTRS):
+                    for component in layer_components:
+                        NodeClass = _get_node_class(get_st(component))
+                        node_map[component.name] = NodeClass(node_label(component.name))
+
+            # Any service type not covered by a layer goes into "Other"
+            other_components = [c for c in architecture.components if get_st(c) not in all_layer_types]
+            if other_components:
+                with Cluster("Other", graph_attr=LAYER_CLUSTER_ATTRS):
+                    for component in other_components:
+                        NodeClass = _get_node_class(get_st(component))
+                        node_map[component.name] = NodeClass(node_label(component.name))
+
+        # ── Auto-connect Users → first Edge/Gateway node ──────────────────
+        if internet_node is not None:
+            edge_types = LAYERS[0][1]  # "Edge / Gateway" types
+            entry_nodes = [
+                node_map[c.name]
+                for c in architecture.components
+                if get_st(c) in edge_types and c.name in node_map
+            ]
+            if entry_nodes:
+                internet_node >> Edge(color="#555555") >> entry_nodes[0]
 
         # Draw edges
         for conn in architecture.connections:
