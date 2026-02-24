@@ -643,6 +643,52 @@ OUTPUT REQUIREMENTS:
 
 Respond with a detailed, production-ready architecture design in structured JSON format."""
 
+    @staticmethod
+    def _estimate_scale_tier(requirements: ArchitectureRequirements, constraints: Dict) -> str:
+        """
+        Derive a human-readable scale tier from requirements so we can inject
+        the right cost reference into the prompt.
+        Returns one of: 'small', 'medium', 'large', 'xlarge'
+        """
+        import re
+
+        scale = requirements.scale_requirements or {}
+        all_text = " ".join([
+            str(scale),
+            str(constraints or {}),
+            " ".join(requirements.non_functional_requirements or []),
+            " ".join(requirements.functional_requirements or []),
+        ]).lower()
+
+        def _to_n(digits: str, suffix: str) -> int:
+            n = int(digits.replace(",", ""))
+            if suffix in ("k", "thousand"):
+                n *= 1_000
+            elif suffix in ("m", "million"):
+                n *= 1_000_000
+            return n
+
+        # "100k concurrent users" / "100k users" / "100,000 concurrent users"
+        for pattern in [
+            r'(\d[\d,]*)\s*(k|m|thousand|million)?\s*(?:concurrent|simultaneous|active|online)\s*users?',
+            r'(\d[\d,]*)\s*(k|m|thousand|million)\s*users?',
+        ]:
+            for digits, suffix in re.findall(pattern, all_text):
+                n = _to_n(digits, suffix or "")
+                if n >= 100_000: return "xlarge"
+                if n >= 10_000:  return "large"
+                if n >= 1_000:   return "medium"
+                if n > 0:        return "small"
+
+        # Keyword fallback
+        if any(w in all_text for w in ["100k", "million", "1m ", "10m ", "high traffic", "global scale"]):
+            return "xlarge"
+        if any(w in all_text for w in ["10k", "50k", "enterprise", "high availability", "multi-region"]):
+            return "large"
+        if any(w in all_text for w in ["1k", "5k", "startup", "growing"]):
+            return "medium"
+        return "small"
+
     def _format_architecture_design_input(self, requirements: ArchitectureRequirements, patterns: List[Dict] = None, constraints: Dict = None) -> str:
         """Format input for architecture design"""
         func_reqs = "\n".join(f"  - {r}" for r in requirements.functional_requirements) or "  - (none extracted)"
@@ -650,9 +696,13 @@ Respond with a detailed, production-ready architecture design in structured JSON
         compliance = ", ".join(requirements.compliance_requirements) if requirements.compliance_requirements else "none"
         integrations = "\n".join(f"  - {r}" for r in (requirements.integration_requirements or [])) or "  - none"
 
-        constraints_text = json.dumps(constraints or requirements.constraints or {}, indent=2)
+        merged_constraints = constraints or requirements.constraints or {}
+        constraints_text = json.dumps(merged_constraints, indent=2)
         scale_text = json.dumps(requirements.scale_requirements or {}, indent=2)
         pattern_names = ", ".join(p.get("name", "") for p in (patterns or [])) or "standard web application"
+
+        scale_tier = self._estimate_scale_tier(requirements, merged_constraints)
+        cost_guidance = self._build_cost_guidance(scale_tier)
 
         output_schema = json.dumps({
             "name": "Descriptive architecture name",
@@ -694,6 +744,8 @@ Respond with a detailed, production-ready architecture design in structured JSON
 === SUGGESTED PATTERNS ===
 {pattern_names}
 
+{cost_guidance}
+
 === OUTPUT FORMAT ===
 Respond ONLY with a single valid JSON object — no markdown fences, no explanatory text before or after.
 Use exactly this schema (include all fields):
@@ -702,10 +754,151 @@ Use exactly this schema (include all fields):
 Rules:
 - components must have at least 3 items and should reflect all major services required
 - service_type must be one of the listed values (lowercase)
-- estimated_monthly_cost must be a number (USD/month)
+- estimated_monthly_cost must be a REALISTIC on-demand USD/month figure at the given scale — do NOT use placeholder values like 0, 1, or 10
 - dependencies lists component names (not IDs)
 - connections must reference component names from the components list
 - configuration must contain at most 5 key settings per component — do NOT expand into full AWS parameter blocks"""
+
+    @staticmethod
+    def _build_cost_guidance(scale_tier: str) -> str:
+        """
+        Return a cost estimation reference section sized for the given scale tier.
+        This section is injected into the architecture design prompt so Nova has
+        real AWS pricing data to work from.
+        """
+        per_service = """=== AWS PRICING REFERENCE (on-demand, us-east-1) ===
+EC2 instances (compute cost only, add ~$10-20/mo EBS per instance):
+  t3.medium  (2 vCPU,  4 GB RAM): $0.0416/hr  →   $30/mo each
+  m5.large   (2 vCPU,  8 GB RAM): $0.096/hr   →   $69/mo each
+  m5.xlarge  (4 vCPU, 16 GB RAM): $0.192/hr   →  $138/mo each
+  m5.2xlarge (8 vCPU, 32 GB RAM): $0.384/hr   →  $277/mo each
+  c5.2xlarge (8 vCPU, 16 GB RAM): $0.340/hr   →  $245/mo each
+  c5.4xlarge (16vCPU, 32 GB RAM): $0.680/hr   →  $490/mo each
+
+ECS Fargate (per task): $0.04048/vCPU/hr + $0.004445/GB/hr
+  1 vCPU / 2 GB task:  ~$32/mo each
+  2 vCPU / 4 GB task:  ~$64/mo each
+  4 vCPU / 8 GB task: ~$128/mo each
+
+RDS PostgreSQL / MySQL (Multi-AZ doubles the price):
+  db.t3.medium  (2 vCPU,  4 GB): $0.068/hr  →  $49/mo single /  $98/mo Multi-AZ
+  db.m5.large   (2 vCPU,  8 GB): $0.192/hr  → $138/mo single / $277/mo Multi-AZ
+  db.m5.2xlarge (8 vCPU, 32 GB): $0.384/hr  → $277/mo single / $554/mo Multi-AZ
+  db.r5.2xlarge (8 vCPU, 64 GB): $0.48/hr   → $346/mo single / $691/mo Multi-AZ
+  Storage: $0.115/GB/mo  (add for configured storage size)
+
+Aurora PostgreSQL (Multi-AZ cluster, 2 instances minimum):
+  db.r5.large  (2 vCPU, 16 GB): ~$292/mo for 2-node cluster
+  db.r5.xlarge (4 vCPU, 32 GB): ~$584/mo for 2-node cluster
+
+ElastiCache Redis:
+  cache.t3.medium  (2 vCPU, 3.2 GB):   $49/mo single /  $98/mo with replica
+  cache.r6g.large  (2 vCPU, 13 GB):   $157/mo single / $314/mo with replica
+  cache.r6g.xlarge (4 vCPU, 26 GB):   $314/mo single / $628/mo with replica
+
+ALB (Application Load Balancer):
+  Base: $0.0225/hr → $16/mo + $0.008/LCU-hr (1 LCU ≈ 25 new conn/sec or 3000 active conn)
+  Typical range: $20-150/mo depending on traffic
+
+CloudFront CDN:
+  $0.0085/GB data transfer out (first 10 TB/mo)
+  $0.0075/10,000 HTTPS requests
+  Typical range: $30-500/mo depending on traffic
+
+API Gateway (REST):
+  $3.50 per million API calls + data transfer
+  Typical range: $10-200/mo
+
+Lambda:
+  First 1M requests/mo free; $0.20/million after
+  $0.0000166667/GB-second compute
+  Typical range: $5-100/mo for moderate traffic
+
+SQS: $0.40/million messages. Typical: $5-50/mo
+SNS: $0.50/million publishes. Typical: $5-30/mo
+S3:  $0.023/GB storage + $0.0004/1000 GET. Typical: $10-100/mo
+CloudWatch: $0.30/metric/mo + $0.50/GB logs. Typical: $20-100/mo
+WAF: $5/mo per web ACL + $1/million requests. Typical: $10-50/mo
+Secrets Manager: $0.40/secret/mo. Typical: $5-20/mo"""
+
+        free_tier_note = """\
+=== AWS FREE TIER (apply where relevant for small/personal workloads) ===
+Always Free (no expiry):
+  Lambda:    1M requests/mo + 400,000 GB-sec compute  →  $0 for low-traffic functions
+  DynamoDB:  25 GB storage + 25 WCU + 25 RCU          →  $0 for small tables
+  SQS:       1M requests/mo                            →  $0 for light queuing
+  SNS:       1M publishes/mo                           →  $0 for light notifications
+  CloudWatch: 10 custom metrics + 10 alarms            →  $0 for basic monitoring
+  Secrets Manager: 10,000 API calls/mo                 →  reduces cost significantly
+  API Gateway: 1M REST calls/mo (first 12 months, then Always Free for HTTP API)
+
+12-Month Free (new AWS accounts only):
+  EC2:       750 hrs/mo of t2.micro or t3.micro        →  effectively $0/mo (1 instance)
+  RDS:       750 hrs/mo of db.t2.micro/db.t3.micro + 20 GB storage → $0/mo (single instance)
+  S3:        5 GB storage + 20k GET + 2k PUT            →  $0 for tiny storage needs
+  CloudFront: 1 TB data transfer out + 10M requests/mo →  $0 for low-traffic sites
+  ALB:       750 hrs/mo                                 →  $0 (1 load balancer)
+
+IMPORTANT cost estimation rules for small/personal architectures:
+- If the architecture uses t3.micro/t2.micro single instances, EC2 cost ≈ $0 (free tier)
+- If RDS is db.t3.micro single-AZ, cost ≈ $0 (free tier) or $15-20/mo after 12 months
+- If Lambda handles all compute with < 1M req/mo, compute cost ≈ $0
+- If DynamoDB replaces RDS for simple workloads, storage cost ≈ $0
+- Do NOT ignore free tier — for hobby/personal/prototype projects it changes the total significantly
+- Estimate the REAL cost after free tier exhaustion if the project is production-grade"""
+
+        scale_context = {
+            "small": """\
+=== SCALE TIER: SMALL (up to ~1,000 concurrent users) ===
+Expected total architecture cost: $0 – $100/month (with free tier) or $100 – $400/month (after free tier)
+NOTE: For personal, hobby, or prototype projects at this scale, use free-tier-eligible instance types
+(t3.micro, db.t3.micro, Lambda instead of EC2) and set estimated_monthly_cost accordingly — many
+components may cost $0 or near-$0.
+Typical sizing:
+  - 1-2 × t3.micro EC2 (free tier) or Lambda functions ($0-5/mo)
+  - 1 × db.t3.micro RDS single-AZ (free tier: $0; after: $15/mo) OR DynamoDB ($0 free tier)
+  - S3 for static assets ($0 free tier)
+  - ALB optional (free tier: $0; otherwise use API Gateway at $0-5/mo)
+Compute after free tier: $30-120/mo. Database after free tier: $15-50/mo.""",
+
+            "medium": """\
+=== SCALE TIER: MEDIUM (1,000 – 10,000 concurrent users) ===
+Expected total architecture cost: $800 – $3,000/month
+Typical sizing:
+  - 4-10 × m5.large EC2 or equivalent Fargate tasks
+  - 1 × db.m5.large RDS Multi-AZ
+  - 1-2 × cache.r6g.large ElastiCache nodes
+  - 1 × ALB, CloudFront CDN
+Compute cost alone: $300-700/mo. Database: $200-500/mo. Cache: $200-400/mo.""",
+
+            "large": """\
+=== SCALE TIER: LARGE (10,000 – 100,000 concurrent users) ===
+Expected total architecture cost: $3,000 – $12,000/month
+Typical sizing:
+  - 8-20 × m5.xlarge or c5.2xlarge EC2 / Fargate tasks (auto-scaling group)
+  - 1 × db.r5.2xlarge RDS Multi-AZ + 1-2 read replicas, OR Aurora cluster
+  - 2-4 × cache.r6g.xlarge ElastiCache nodes (cluster mode)
+  - 1 × ALB + CloudFront + WAF
+Compute cost alone: $1,500-4,000/mo. Database: $700-2,000/mo. Cache: $600-1,300/mo.""",
+
+            "xlarge": """\
+=== SCALE TIER: X-LARGE (100,000+ concurrent users) ===
+Expected total architecture cost: $10,000 – $50,000+/month
+Typical sizing:
+  - 20-60 × c5.4xlarge or m5.2xlarge EC2 / Fargate tasks across multiple AZs
+  - Aurora cluster: db.r5.2xlarge, 2 writers + 3-5 read replicas  →  $3,000-6,000/mo
+  - ElastiCache cluster: 6-12 × cache.r6g.xlarge nodes             →  $2,000-4,000/mo
+  - Multi-region CloudFront + WAF + Shield Advanced                 →  $1,000-3,000/mo
+  - ALB × 2-3 (per region)                                         →    $100-400/mo
+  - Data transfer out: 10-100 TB/mo                                 →  $1,000-10,000/mo
+Compute cost alone: $5,000-30,000/mo. CRITICAL: single component costs are in the hundreds.""",
+        }
+
+        tier_text = scale_context.get(scale_tier, scale_context["medium"])
+        # Include free tier guidance for workloads where it materially affects estimates
+        if scale_tier in ("small", "medium"):
+            return per_service + "\n\n" + free_tier_note + "\n\n" + tier_text
+        return per_service + "\n\n" + tier_text
 
     def _build_optimization_prompt(self, architecture: SystemArchitecture, cost_breakdown: List[Dict], usage_patterns: Dict) -> str:
         """Build prompt for optimization suggestions"""
