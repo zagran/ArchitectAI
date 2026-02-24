@@ -237,6 +237,11 @@ export interface ArchitectureTemplate {
   tags: string[];
 }
 
+export interface ArchitectureFeedback {
+  rating: number | null;
+  feedbackText?: string | null;
+}
+
 export interface ArchitectureListItem {
   id: string;
   name: string;

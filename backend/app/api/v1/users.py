@@ -3,6 +3,7 @@ Users API Routes
 REST endpoints for user management and authentication
 """
 
+import asyncio
 import uuid
 from typing import Dict, Any, Optional
 from datetime import datetime
@@ -24,6 +25,33 @@ from app.models.database_models import User as UserDB
 logger = get_logger(__name__)
 router = APIRouter()
 security = HTTPBearer()
+
+
+async def _write_audit(
+    user_id: Optional[str],
+    action: str,
+    resource_type: str,
+    resource_id: Optional[str] = None,
+    details: Optional[dict] = None,
+) -> None:
+    """Write an audit log entry (fire-and-forget, opens its own DB session)."""
+    try:
+        import uuid as _uuid
+        from app.core.database import get_db
+        from app.models.database_models import AuditLog
+
+        uid = _uuid.UUID(user_id) if user_id else None
+        rid = _uuid.UUID(resource_id) if resource_id else None
+        async with get_db() as db:
+            db.add(AuditLog(
+                user_id=uid,
+                action=action,
+                resource_type=resource_type,
+                resource_id=rid,
+                details=details,
+            ))
+    except Exception:
+        pass
 
 
 @router.post("/register")
@@ -81,6 +109,9 @@ async def register_user(
                     user_id=str(new_user.id),
                     email=user_data.email)
         security_logger.login_attempt(user_data.email, True)
+        asyncio.create_task(_write_audit(
+            str(new_user.id), "user_register", "user", str(new_user.id)
+        ))
 
         return {
             "success": True,
@@ -151,6 +182,9 @@ async def login_user(
 
         logger.info("User logged in successfully", user_id=str(user.id), email=user_data.email)
         security_logger.login_attempt(user_data.email, True)
+        asyncio.create_task(_write_audit(
+            str(user.id), "user_login", "user", str(user.id)
+        ))
 
         return {
             "success": True,

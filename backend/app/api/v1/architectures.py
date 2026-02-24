@@ -3,12 +3,14 @@ Architecture API Routes
 REST endpoints for architecture generation and management
 """
 
+import asyncio
 import uuid
 from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -26,10 +28,42 @@ from app.models.architecture_models import (
     CostAnalysis,
     OptimizationSuggestion,
 )
-from app.models.database_models import Architecture as ArchitectureDB
+from app.models.database_models import Architecture as ArchitectureDB, ArchitectureFeedback as FeedbackDB
 
 logger = get_logger(__name__)
 router = APIRouter()
+
+
+class FeedbackPayload(BaseModel):
+    rating: int
+    feedback_text: Optional[str] = None
+
+
+async def _write_audit(
+    user_id: Optional[str],
+    action: str,
+    resource_type: str,
+    resource_id: Optional[str] = None,
+    details: Optional[dict] = None,
+) -> None:
+    """Write an audit log entry (fire-and-forget, opens its own DB session)."""
+    try:
+        import uuid as _uuid
+        from app.core.database import get_db
+        from app.models.database_models import AuditLog
+
+        uid = _uuid.UUID(user_id) if user_id else None
+        rid = _uuid.UUID(resource_id) if resource_id else None
+        async with get_db() as db:
+            db.add(AuditLog(
+                user_id=uid,
+                action=action,
+                resource_type=resource_type,
+                resource_id=rid,
+                details=details,
+            ))
+    except Exception:
+        pass
 
 
 @router.post("/generate", response_model=ArchitectureResponse)
@@ -87,6 +121,10 @@ async def generate_architecture(
         )
         db.add(db_arch)
         await db.commit()
+
+        asyncio.create_task(_write_audit(
+            user_id, "architecture_create", "architecture", architecture.id
+        ))
 
         # Get Nova usage stats
         nova_usage = nova_client.get_usage_summary()
@@ -390,6 +428,79 @@ async def list_architectures(
         )
 
 
+@router.post("/{architecture_id}/feedback")
+async def submit_feedback(
+    architecture_id: str,
+    payload: FeedbackPayload,
+    user_id: str = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db_session)
+):
+    """Submit or update a 1-5 star rating (with optional text) for an architecture."""
+    if not 1 <= payload.rating <= 5:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Rating must be between 1 and 5")
+
+    try:
+        row = await db.get(ArchitectureDB, uuid.UUID(architecture_id))
+    except (ValueError, AttributeError):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Architecture not found")
+
+    if not row or row.user_id != user_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Architecture not found")
+
+    try:
+        uid = uuid.UUID(user_id)
+        aid = uuid.UUID(architecture_id)
+    except (ValueError, AttributeError):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid ID")
+
+    stmt = select(FeedbackDB).where(
+        FeedbackDB.architecture_id == aid,
+        FeedbackDB.user_id == uid,
+    )
+    result = await db.execute(stmt)
+    existing = result.scalar_one_or_none()
+
+    if existing:
+        existing.rating = payload.rating
+        existing.feedback_text = payload.feedback_text
+    else:
+        db.add(FeedbackDB(
+            architecture_id=aid,
+            user_id=uid,
+            rating=payload.rating,
+            feedback_text=payload.feedback_text,
+        ))
+
+    await db.commit()
+    return {"success": True}
+
+
+@router.get("/{architecture_id}/feedback")
+async def get_feedback(
+    architecture_id: str,
+    user_id: str = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db_session)
+):
+    """Get the current user's feedback for an architecture."""
+    try:
+        uid = uuid.UUID(user_id)
+        aid = uuid.UUID(architecture_id)
+    except (ValueError, AttributeError):
+        return {"rating": None, "feedback_text": None}
+
+    stmt = select(FeedbackDB).where(
+        FeedbackDB.architecture_id == aid,
+        FeedbackDB.user_id == uid,
+    )
+    result = await db.execute(stmt)
+    feedback = result.scalar_one_or_none()
+
+    if not feedback:
+        return {"rating": None, "feedback_text": None}
+
+    return {"rating": feedback.rating, "feedback_text": feedback.feedback_text}
+
+
 @router.delete("/{architecture_id}")
 async def delete_architecture(
     architecture_id: str,
@@ -404,6 +515,10 @@ async def delete_architecture(
 
         await db.delete(row)
         await db.commit()
+
+        asyncio.create_task(_write_audit(
+            user_id, "architecture_delete", "architecture", architecture_id
+        ))
 
         logger.info("Architecture deleted", architecture_id=architecture_id, user_id=user_id)
 

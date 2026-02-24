@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronDownIcon } from '@heroicons/react/24/outline';
+import { StarIcon } from '@heroicons/react/24/solid';
 import Layout from '@/components/Layout/Layout';
 import ArchitectureViewer from '@/components/ArchitectureViewer/ArchitectureViewer';
 import { useAuth } from '@/hooks/useAPI';
@@ -59,6 +60,87 @@ function RequirementsPanel({ req }: { req: RequirementsInput }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function StarRating({ architectureId }: { architectureId: string }) {
+  const [rating, setRating] = useState<number | null>(null);
+  const [hover, setHover] = useState<number | null>(null);
+  const [feedbackText, setFeedbackText] = useState('');
+  const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    APIClient.getFeedback(architectureId)
+      .then((f) => {
+        if (f.rating) setRating(f.rating);
+        if (f.feedbackText) setFeedbackText(f.feedbackText);
+      })
+      .catch(() => {});
+  }, [architectureId]);
+
+  const handleStarClick = async (star: number) => {
+    setRating(star);
+    setSaved(false);
+    try {
+      await APIClient.submitFeedback(architectureId, star, feedbackText || undefined);
+      setSaved(true);
+    } catch {}
+  };
+
+  const handleSaveText = async () => {
+    if (rating === null) return;
+    setSaving(true);
+    try {
+      await APIClient.submitFeedback(architectureId, rating, feedbackText || undefined);
+      setSaved(true);
+    } catch {} finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="mx-auto max-w-7xl px-4 pb-6">
+      <div className="bg-white border border-secondary-200 rounded-lg shadow-sm p-5">
+        <p className="text-sm font-medium text-secondary-700 mb-3">Rate this architecture</p>
+        <div className="flex items-center gap-1 mb-3">
+          {[1, 2, 3, 4, 5].map((star) => (
+            <button
+              key={star}
+              onClick={() => handleStarClick(star)}
+              onMouseEnter={() => setHover(star)}
+              onMouseLeave={() => setHover(null)}
+              className="focus:outline-none transition-transform hover:scale-110"
+            >
+              <StarIcon
+                className={`h-7 w-7 transition-colors ${
+                  star <= (hover ?? rating ?? 0) ? 'text-yellow-400' : 'text-secondary-300'
+                }`}
+              />
+            </button>
+          ))}
+          {saved && <span className="ml-2 text-xs text-green-600">Saved ✓</span>}
+        </div>
+        {rating !== null && (
+          <div className="flex items-end gap-2">
+            <textarea
+              value={feedbackText}
+              onChange={(e) => { setFeedbackText(e.target.value); setSaved(false); }}
+              placeholder="Any additional feedback? (optional)"
+              rows={2}
+              className="flex-1 text-sm border border-secondary-200 rounded-md px-3 py-2 resize-none focus:outline-none focus:ring-1 focus:ring-primary-400"
+            />
+            <button
+              onClick={handleSaveText}
+              disabled={saving}
+              className="px-3 py-2 text-sm bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50 transition-colors"
+            >
+              {saving ? '...' : 'Save'}
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -178,6 +260,8 @@ export default function ArchitecturePage() {
             onStartOver={() => router.push('/')}
           />
         </motion.div>
+
+        {typeof id === 'string' && <StarRating architectureId={id} />}
       </div>
     </Layout>
   );

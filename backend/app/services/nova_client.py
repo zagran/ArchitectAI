@@ -69,6 +69,42 @@ async def _persist_nova_log(
         logger.warning(f"Failed to write nova log: {exc}")
 
 
+async def _persist_nova_api_usage(
+    model: str,
+    operation: str,
+    user_id: Optional[str],
+    input_tokens: int,
+    output_tokens: int,
+    processing_time_ms: int,
+    success: bool,
+) -> None:
+    """Write a Nova API usage row to the DB (fire-and-forget)."""
+    try:
+        import uuid as _uuid
+        from app.core.database import get_db
+        from app.models.database_models import NovaAPIUsage as NovaAPIUsageDB
+
+        uid = None
+        if user_id:
+            try:
+                uid = _uuid.UUID(user_id)
+            except (ValueError, AttributeError):
+                pass
+
+        async with get_db() as db:
+            db.add(NovaAPIUsageDB(
+                user_id=uid,
+                model_name=model,
+                operation_type=operation,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                processing_time_ms=processing_time_ms,
+                success=success,
+            ))
+    except Exception:
+        pass
+
+
 class NovaAPIUsage(BaseModel):
     """Track Nova API usage for monitoring and optimization"""
     model_name: str
@@ -393,6 +429,9 @@ class NovaClient:
 
             response_body = json.loads(response['body'].read())
             text = response_body['output']['message']['content'][0]['text']
+            _usage = response_body.get('usage', {})
+            _input_tokens = _usage.get('inputTokens', 0)
+            _output_tokens = _usage.get('outputTokens', 0)
 
             if _log_operation:
                 _dur = int((datetime.now() - _t0).total_seconds() * 1000)
@@ -405,6 +444,15 @@ class NovaClient:
                     success=True,
                     user_id=_log_user_id,
                     arch_id=_log_arch_id,
+                ))
+                asyncio.create_task(_persist_nova_api_usage(
+                    model=self.model_configs['nova_lite'].model_id,
+                    operation=_log_operation,
+                    user_id=_log_user_id,
+                    input_tokens=_input_tokens,
+                    output_tokens=_output_tokens,
+                    processing_time_ms=_dur,
+                    success=True,
                 ))
 
             return text
@@ -509,6 +557,9 @@ class NovaClient:
 
             response_body = json.loads(response['body'].read())
             text = response_body['output']['message']['content'][0]['text']
+            _usage = response_body.get('usage', {})
+            _input_tokens = _usage.get('inputTokens', 0)
+            _output_tokens = _usage.get('outputTokens', 0)
 
             if _log_operation:
                 _dur = int((datetime.now() - _t0).total_seconds() * 1000)
@@ -521,6 +572,15 @@ class NovaClient:
                     success=True,
                     user_id=_log_user_id,
                     arch_id=_log_arch_id,
+                ))
+                asyncio.create_task(_persist_nova_api_usage(
+                    model=self.model_configs['nova_micro'].model_id,
+                    operation=_log_operation,
+                    user_id=_log_user_id,
+                    input_tokens=_input_tokens,
+                    output_tokens=_output_tokens,
+                    processing_time_ms=_dur,
+                    success=True,
                 ))
 
             return text
