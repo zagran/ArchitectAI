@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { SystemArchitecture } from '@/types';
 import { CloudIcon, ServerIcon, CircleStackIcon, ShieldCheckIcon, GlobeAltIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
 import APIClient from '@/lib/api';
+import { generateDrawioXml } from '@/lib/drawio';
 
 interface ArchitectureDiagramProps {
   architecture: SystemArchitecture;
@@ -125,6 +126,17 @@ export default function ArchitectureDiagram({ architecture }: ArchitectureDiagra
     link.click();
   };
 
+  const handleExportDrawio = () => {
+    const xml = generateDrawioXml(architecture);
+    const blob = new Blob([xml], { type: 'application/xml' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${architecture.name.replace(/\s+/g, '_')}_diagram.drawio`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="bg-white rounded-lg shadow-sm border border-secondary-200 p-6">
       <div className="flex items-center justify-between mb-6">
@@ -139,13 +151,22 @@ export default function ArchitectureDiagram({ architecture }: ArchitectureDiagra
         <div className="mb-8">
           <div className="flex items-center justify-between mb-3">
             <span className="text-sm font-medium text-secondary-700">Generated Diagram</span>
-            <button
-              onClick={handleDownload}
-              className="flex items-center text-sm text-primary-600 hover:text-primary-700 font-medium"
-            >
-              <ArrowDownTrayIcon className="h-4 w-4 mr-1" />
-              Download PNG
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleDownload}
+                className="flex items-center text-sm text-primary-600 hover:text-primary-700 font-medium"
+              >
+                <ArrowDownTrayIcon className="h-4 w-4 mr-1" />
+                Download PNG
+              </button>
+              <button
+                onClick={handleExportDrawio}
+                className="flex items-center text-sm text-secondary-600 hover:text-secondary-800 font-medium"
+              >
+                <ArrowDownTrayIcon className="h-4 w-4 mr-1" />
+                Export Draw.io
+              </button>
+            </div>
           </div>
           <img
             src={`data:image/png;base64,${diagramImage}`}
@@ -223,23 +244,32 @@ export default function ArchitectureDiagram({ architecture }: ArchitectureDiagra
               Uses the diagrams library to create a publication-ready AWS architecture diagram with official icons.
             </p>
           </div>
-          <button
-            onClick={handleGenerateDiagram}
-            disabled={generating}
-            className="ml-4 flex items-center px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0"
-          >
-            {generating ? (
-              <>
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                Generating…
-              </>
-            ) : (
-              <>
-                <CloudIcon className="h-4 w-4 mr-2" />
-                {diagramImage ? 'Regenerate' : 'Generate Diagram'}
-              </>
-            )}
-          </button>
+          <div className="ml-4 flex items-center gap-2 flex-shrink-0">
+            <button
+              onClick={handleExportDrawio}
+              className="flex items-center px-4 py-2 bg-white border border-secondary-300 text-secondary-700 text-sm font-medium rounded-lg hover:bg-secondary-50 transition-colors"
+            >
+              <ArrowDownTrayIcon className="h-4 w-4 mr-2" />
+              Export Draw.io
+            </button>
+            <button
+              onClick={handleGenerateDiagram}
+              disabled={generating}
+              className="flex items-center px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {generating ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                  Generating…
+                </>
+              ) : (
+                <>
+                  <CloudIcon className="h-4 w-4 mr-2" />
+                  {diagramImage ? 'Regenerate' : 'Generate Diagram'}
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </div>

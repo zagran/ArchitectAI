@@ -672,7 +672,7 @@ Respond with a detailed, production-ready architecture design in structured JSON
         for pattern in [
             r'(\d[\d,]*)\s*(k|m|thousand|million)?\s*(?:concurrent|simultaneous|active|online)\s*users?',
             r'(\d[\d,]*)\s*(k|m|thousand|million)\s*users?',
-        ]:got
+        ]:
             for digits, suffix in re.findall(pattern, all_text):
                 n = _to_n(digits, suffix or "")
                 if n >= 100_000: return "xlarge"
