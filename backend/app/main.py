@@ -121,11 +121,15 @@ app.add_middleware(
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request: Request, exc: StarletteHTTPException):
     """Handle HTTP exceptions"""
+    if isinstance(exc.detail, dict):
+        message = exc.detail.get("message") or str(exc.detail)
+    else:
+        message = str(exc.detail) if exc.detail is not None else "An error occurred"
     return JSONResponse(
         status_code=exc.status_code,
         content=ErrorResponse(
             error_type="HTTPException",
-            message=exc.detail
+            message=message
         ).model_dump(mode="json")
     )
 

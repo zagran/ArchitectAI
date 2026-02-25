@@ -22,6 +22,21 @@ type RegisterData = z.infer<typeof registerSchema>;
 
 type Tab = 'login' | 'register';
 
+function getErrorMessage(err: any, context: 'login' | 'register'): string {
+  const status = err?.response?.status;
+  // Backend returns either FastAPI's {"detail": "..."} or our ErrorResponse {"message": "..."}
+  const detail = err?.response?.data?.detail;
+  const message = err?.response?.data?.message;
+  const text = (typeof detail === 'string' ? detail : null) ?? (typeof message === 'string' ? message : null);
+
+  if (status === 401) return 'Incorrect email or password.';
+  if (status === 409) return 'An account with this email already exists.';
+  if (text) return text;
+  return context === 'login'
+    ? 'Sign in failed. Please try again.'
+    : 'Registration failed. Please try again.';
+}
+
 interface AuthFormProps {
   onLogin: (email: string, password: string) => Promise<any>;
   onRegister: (userData: UserCreate) => Promise<any>;
@@ -44,7 +59,7 @@ export default function AuthForm({ onLogin, onRegister }: AuthFormProps) {
     try {
       await onLogin(data.email, data.password);
     } catch (err: any) {
-      setApiError(err?.response?.data?.detail || err?.message || 'Login failed');
+      setApiError(getErrorMessage(err, 'login'));
     }
   };
 
@@ -57,7 +72,7 @@ export default function AuthForm({ onLogin, onRegister }: AuthFormProps) {
         fullName: data.fullName,
       });
     } catch (err: any) {
-      setApiError(err?.response?.data?.detail || err?.message || 'Registration failed');
+      setApiError(getErrorMessage(err, 'register'));
     }
   };
 
