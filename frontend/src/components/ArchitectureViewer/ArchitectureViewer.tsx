@@ -9,12 +9,14 @@ import {
   ArrowPathIcon,
   CheckCircleIcon,
   ExclamationTriangleIcon,
+  RocketLaunchIcon,
 } from '@heroicons/react/24/outline';
 import { SystemArchitecture, CostAnalysis, OptimizationSuggestion } from '@/types';
 import Button from '@/components/ui/Button';
 import ArchitectureDiagram from './ArchitectureDiagram';
 import CostBreakdown from './CostBreakdown';
 import OptimizationsList from './OptimizationsList';
+import ImplementationRoadmapViewer from './ImplementationRoadmapViewer';
 
 interface ArchitectureViewerProps {
   architecture: SystemArchitecture;
@@ -51,6 +53,7 @@ export default function ArchitectureViewer({
     { id: 'diagram', name: 'Architecture', icon: CpuChipIcon },
     { id: 'costs', name: 'Cost Analysis', icon: CurrencyDollarIcon },
     { id: 'optimizations', name: 'Optimizations', icon: LightBulbIcon },
+    { id: 'implementation', name: 'Roadmap', icon: RocketLaunchIcon },
   ];
 
   const totalMonthlyCost = costAnalysis?.totalMonthlyCost || architecture.estimatedMonthlyCost || 0;
@@ -188,6 +191,10 @@ export default function ArchitectureViewer({
 
         {activeTab === 'optimizations' && (
           <OptimizationsList optimizations={optimizations} />
+        )}
+
+        {activeTab === 'implementation' && (
+          <ImplementationRoadmapViewer architectureId={architecture.id} />
         )}
       </motion.div>
     </div>

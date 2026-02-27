@@ -428,6 +428,59 @@ async def list_architectures(
         )
 
 
+@router.post("/{architecture_id}/roadmap")
+async def generate_roadmap(
+    architecture_id: str,
+    force: bool = False,
+    user_id: str = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db_session)
+):
+    """
+    Generate (or return cached) implementation roadmap for an architecture.
+    Pass force=true to clear cache and regenerate.
+    """
+    try:
+        row = await db.get(ArchitectureDB, uuid.UUID(architecture_id))
+    except (ValueError, AttributeError):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Architecture not found")
+
+    if not row or row.user_id != user_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Architecture not found")
+
+    # Return cached roadmap if it exists and force-regeneration not requested
+    if row.implementation_plan and not force:
+        return JSONResponse(content={"success": True, "roadmap": row.implementation_plan})
+
+    # Generate via Nova
+    architecture = SystemArchitecture.model_validate(row.architecture_spec)
+    best_practices = [
+        "Follow the AWS Well-Architected Framework",
+        "Use Infrastructure as Code (Terraform preferred)",
+        "Implement CI/CD pipelines from the start",
+        "Design for observability — logs, metrics, traces",
+        "Apply least-privilege IAM policies",
+        "Plan for zero-downtime deployments",
+    ]
+
+    try:
+        roadmap = await nova_client.plan_implementation(
+            architecture=architecture,
+            dependencies={},
+            best_practices=best_practices,
+        )
+    except Exception as e:
+        logger.error("Roadmap generation failed", architecture_id=architecture_id, error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Roadmap generation failed"
+        )
+
+    row.implementation_plan = roadmap
+    await db.commit()
+
+    return JSONResponse(content={"success": True, "roadmap": roadmap})
+
+
 @router.post("/{architecture_id}/feedback")
 async def submit_feedback(
     architecture_id: str,

@@ -1005,79 +1005,66 @@ Rules:
 
     def _build_implementation_planning_prompt(self, architecture: SystemArchitecture, dependencies: Dict, best_practices: List[str]) -> str:
         """Build prompt for implementation planning"""
-        return f"""Create a comprehensive implementation roadmap for this AWS architecture.
+        component_names = [c.name for c in architecture.components]
+        arch_json = json.dumps({
+            'name': architecture.name,
+            'deployment_model': architecture.deployment_model,
+            'components': [
+                {'name': c.name, 'service_type': c.service_type, 'description': getattr(c, 'description', '')}
+                for c in architecture.components
+            ],
+        }, indent=2)
 
-ARCHITECTURE TO IMPLEMENT:
-{json.dumps({
-    'name': architecture.name,
-    'components': [comp.model_dump() for comp in architecture.components],
-    'deployment_model': architecture.deployment_model
-}, indent=2)}
+        return f"""You are an AWS solutions architect. Create a detailed, architecture-specific implementation roadmap.
 
-DEPENDENCIES AND CONSTRAINTS:
-{json.dumps(dependencies, indent=2)}
+ARCHITECTURE: {architecture.name}
+COMPONENTS: {', '.join(component_names)}
+DEPLOYMENT MODEL: {architecture.deployment_model}
 
-BEST PRACTICES TO FOLLOW:
-{json.dumps(best_practices, indent=2)}
+FULL ARCHITECTURE SPEC:
+{arch_json}
 
-IMPLEMENTATION ROADMAP REQUIREMENTS:
+BEST PRACTICES: {', '.join(best_practices)}
 
-1. PHASE PLANNING:
-   - Break implementation into logical phases (3-6 phases)
-   - Define clear deliverables and success criteria for each phase
-   - Identify dependencies between phases and components
-   - Provide realistic timeline estimates
+Generate an implementation roadmap with 3-5 phases tailored specifically to the components listed above.
+Each phase must reference actual component names from this architecture.
 
-2. INFRASTRUCTURE AS CODE:
-   - Generate Terraform configurations for each phase
-   - Include CloudFormation templates as alternatives
-   - Provide deployment scripts and automation
-   - Include environment-specific configurations (dev/staging/prod)
+Respond with ONLY a valid JSON object matching this exact schema — no prose, no markdown, just the JSON:
 
-3. DEPLOYMENT STRATEGY:
-   - Blue-green or rolling deployment approach
-   - Database migration strategies
-   - DNS and traffic routing plans
-   - Rollback procedures and contingency plans
-
-4. TESTING AND VALIDATION:
-   - Unit and integration testing requirements
-   - Performance testing approach
-   - Security testing and penetration testing
-   - User acceptance testing criteria
-
-5. MONITORING AND OBSERVABILITY:
-   - CloudWatch setup and custom metrics
-   - Logging aggregation and analysis
-   - Distributed tracing implementation
-   - Alerting and notification setup
-
-6. SECURITY IMPLEMENTATION:
-   - IAM roles and policies creation
-   - Security group and NACL configuration
-   - Encryption key management setup
-   - Compliance validation procedures
-
-7. OPERATIONAL READINESS:
-   - Documentation requirements
-   - Team training and knowledge transfer
-   - Support and maintenance procedures
-   - Disaster recovery testing
-
-8. RISK MITIGATION:
-   - Identify potential risks and issues
-   - Provide mitigation strategies
-   - Define rollback procedures
-   - Create contingency plans
-
-For each phase, provide:
-- Detailed task list with estimates
-- Resource requirements (team, tools, budget)
-- Success criteria and acceptance tests
-- Dependencies and blockers
-- Communication and stakeholder management
-
-Generate a production-ready implementation plan with executable steps."""
+{{
+  "phases": [
+    {{
+      "phase_number": 1,
+      "name": "string — phase name specific to this architecture",
+      "description": "string — what is set up in this phase",
+      "estimated_duration_days": 5,
+      "tasks": [
+        {{
+          "name": "string — specific task name",
+          "description": "string — what exactly to do",
+          "estimated_duration_hours": 4,
+          "deliverables": ["list of concrete outputs"],
+          "risks": ["list of risks"],
+          "validation_criteria": ["how to verify completion"]
+        }}
+      ],
+      "deliverables": ["phase-level deliverables"],
+      "success_criteria": ["phase-level success criteria"]
+    }}
+  ],
+  "total_duration_days": 30,
+  "rollback_procedures": [
+    "Step-by-step rollback instruction 1",
+    "Step-by-step rollback instruction 2"
+  ],
+  "infrastructure_code": [
+    {{
+      "code_type": "terraform",
+      "file_name": "main.tf",
+      "content": "# Terraform config specific to this architecture\\nresource \\"aws_example\\" \\"example\\" {{\\n  # ...\\n}}"
+    }}
+  ]
+}}"""
 
     def _build_diagram_analysis_prompt(self) -> str:
         """Build prompt for analyzing uploaded diagrams"""
