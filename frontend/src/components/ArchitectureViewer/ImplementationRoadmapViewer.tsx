@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   RocketLaunchIcon,
@@ -229,9 +229,23 @@ interface Props {
 }
 
 export default function ImplementationRoadmapViewer({ architectureId }: Props) {
-  const [status, setStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
+  const [status, setStatus] = useState<'checking' | 'idle' | 'loading' | 'done' | 'error'>('checking');
   const [roadmap, setRoadmap] = useState<Roadmap | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Auto-load cached roadmap on mount
+  useEffect(() => {
+    APIClient.getRoadmap(architectureId)
+      .then((data) => {
+        if (data) {
+          setRoadmap(data);
+          setStatus('done');
+        } else {
+          setStatus('idle');
+        }
+      })
+      .catch(() => setStatus('idle'));
+  }, [architectureId]);
 
   const generate = async (force = false) => {
     setStatus('loading');
@@ -249,6 +263,15 @@ export default function ImplementationRoadmapViewer({ architectureId }: Props) {
   const phases = roadmap?.phases ?? [];
   const totalDays = roadmap?.total_duration_days ?? phases.reduce((s, p) => s + (p.estimated_duration_days ?? 0), 0);
   const totalTasks = phases.reduce((s, p) => s + (p.tasks?.length ?? 0), 0);
+
+  // Checking cache
+  if (status === 'checking') {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="spinner w-8 h-8" />
+      </div>
+    );
+  }
 
   // Idle — show prompt
   if (status === 'idle') {

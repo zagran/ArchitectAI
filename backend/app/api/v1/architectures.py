@@ -428,6 +428,24 @@ async def list_architectures(
         )
 
 
+@router.get("/{architecture_id}/roadmap")
+async def get_roadmap(
+    architecture_id: str,
+    user_id: str = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db_session)
+):
+    """Return cached roadmap if it exists, otherwise return null."""
+    try:
+        row = await db.get(ArchitectureDB, uuid.UUID(architecture_id))
+    except (ValueError, AttributeError):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Architecture not found")
+
+    if not row or row.user_id != user_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Architecture not found")
+
+    return JSONResponse(content={"roadmap": row.implementation_plan})
+
+
 @router.post("/{architecture_id}/roadmap")
 async def generate_roadmap(
     architecture_id: str,
