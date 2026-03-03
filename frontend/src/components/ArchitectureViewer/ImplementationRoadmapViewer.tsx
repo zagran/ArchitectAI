@@ -348,9 +348,7 @@ export default function ImplementationRoadmapViewer({ architectureId }: Props) {
       {phases.length > 0 && (
         <div>
           <h3 className="text-sm font-semibold text-secondary-700 uppercase tracking-wider mb-4">Implementation Phases</h3>
-          <div className="relative space-y-3">
-            {/* Vertical connector line */}
-            <div className="absolute left-[2.6rem] top-10 bottom-4 w-px bg-secondary-200 -z-0 hidden sm:block" />
+          <div className="space-y-3">
             {phases.map((phase, i) => (
               <PhaseCard key={i} phase={phase} index={i} />
             ))}
