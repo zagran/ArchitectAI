@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { CostAnalysis } from '@/types';
 import {
-  PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis,
-  CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+  BarChart, Bar, XAxis, YAxis,
+  CartesianGrid, Tooltip, ResponsiveContainer, Cell,
 } from 'recharts';
 import {
   CurrencyDollarIcon,
@@ -158,29 +158,30 @@ export default function CostBreakdown({ costAnalysis }: CostBreakdownProps) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="bg-white rounded-lg shadow-sm border border-secondary-200 p-6">
           <h3 className="text-base font-semibold text-secondary-900 mb-6">Cost by Component</h3>
-          <div className="h-72">
+          <div style={{ height: Math.max(180, chartData.length * 36) }}>
             <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={chartData}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={({ percentage }) => `${percentage}%`}
-                  outerRadius={90}
-                  dataKey="cost"
-                >
+              <BarChart
+                data={[...chartData].sort((a, b) => b.cost - a.cost)}
+                layout="vertical"
+                margin={{ top: 0, right: 60, left: 8, bottom: 0 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
+                <XAxis type="number" tickFormatter={(v) => `$${v}`} fontSize={11} />
+                <YAxis
+                  type="category"
+                  dataKey="name"
+                  width={130}
+                  fontSize={11}
+                  tickLine={false}
+                  tick={{ fill: '#4b5563' }}
+                />
+                <Tooltip content={<CustomTooltip />} cursor={{ fill: '#f3f4f6' }} />
+                <Bar dataKey="cost" radius={[0, 4, 4, 0]} label={{ position: 'right', fontSize: 11, formatter: (v: number) => `${chartData.find(d => d.cost === v)?.percentage ?? ''}%`, fill: '#6b7280' }}>
                   {chartData.map((_, i) => (
                     <Cell key={i} fill={COLORS[i % COLORS.length]} />
                   ))}
-                </Pie>
-                <Tooltip content={<CustomTooltip />} />
-                <Legend
-                  formatter={(value) => (
-                    <span className="text-xs text-secondary-700">{value}</span>
-                  )}
-                />
-              </PieChart>
+                </Bar>
+              </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
