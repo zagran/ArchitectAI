@@ -195,51 +195,57 @@ class CostCalculatorService:
     ) -> ComponentCost:
         """Calculate cost for individual component.
 
-        Priority:
-        1. Nova's estimated_monthly_cost if positive — it was designed with real pricing in mind.
-        2. Formula-based fallback per service type.
+        Always runs the service-specific formula to derive meaningful cost category
+        breakdown (compute / storage / requests / …). If Nova provided an
+        estimated_monthly_cost, it is used as the authoritative total and the
+        formula breakdown is scaled proportionally to match it.
         """
         service_type = component.service_type
 
         try:
-            # Use Nova's estimate when available (it's already trained on AWS pricing)
-            if component.estimated_monthly_cost and component.estimated_monthly_cost > 0:
-                monthly_cost = component.estimated_monthly_cost
-                cost_breakdown = {"nova_estimate": round(monthly_cost, 2)}
-                cost_drivers = [
-                    f"Service type: {service_type.value}",
-                    f"Estimate provided by Nova AI based on configuration",
-                ]
+            # Always derive breakdown by service type to get meaningful cost categories.
+            # If Nova provided an estimated_monthly_cost, use it as the authoritative total
+            # and scale the formula breakdown proportionally so categories stay correct.
+            if service_type == ServiceType.EC2:
+                formula_total, cost_breakdown, cost_drivers = await self._calculate_ec2_cost(
+                    component, usage_patterns
+                )
+            elif service_type == ServiceType.RDS:
+                formula_total, cost_breakdown, cost_drivers = await self._calculate_rds_cost(
+                    component, usage_patterns
+                )
+            elif service_type == ServiceType.S3:
+                formula_total, cost_breakdown, cost_drivers = await self._calculate_s3_cost(
+                    component, usage_patterns
+                )
+            elif service_type == ServiceType.ALB:
+                formula_total, cost_breakdown, cost_drivers = await self._calculate_alb_cost(
+                    component, usage_patterns
+                )
+            elif service_type == ServiceType.LAMBDA:
+                formula_total, cost_breakdown, cost_drivers = await self._calculate_lambda_cost(
+                    component, usage_patterns
+                )
+            elif service_type == ServiceType.ELASTICACHE:
+                formula_total, cost_breakdown, cost_drivers = await self._calculate_elasticache_cost(
+                    component, usage_patterns
+                )
             else:
-                # Formula-based fallback
-                if service_type == ServiceType.EC2:
-                    monthly_cost, cost_breakdown, cost_drivers = await self._calculate_ec2_cost(
-                        component, usage_patterns
-                    )
-                elif service_type == ServiceType.RDS:
-                    monthly_cost, cost_breakdown, cost_drivers = await self._calculate_rds_cost(
-                        component, usage_patterns
-                    )
-                elif service_type == ServiceType.S3:
-                    monthly_cost, cost_breakdown, cost_drivers = await self._calculate_s3_cost(
-                        component, usage_patterns
-                    )
-                elif service_type == ServiceType.ALB:
-                    monthly_cost, cost_breakdown, cost_drivers = await self._calculate_alb_cost(
-                        component, usage_patterns
-                    )
-                elif service_type == ServiceType.LAMBDA:
-                    monthly_cost, cost_breakdown, cost_drivers = await self._calculate_lambda_cost(
-                        component, usage_patterns
-                    )
-                elif service_type == ServiceType.ELASTICACHE:
-                    monthly_cost, cost_breakdown, cost_drivers = await self._calculate_elasticache_cost(
-                        component, usage_patterns
-                    )
+                formula_total, cost_breakdown, cost_drivers = await self._calculate_generic_cost(
+                    component, usage_patterns
+                )
+
+            nova_total = component.estimated_monthly_cost if component.estimated_monthly_cost and component.estimated_monthly_cost > 0 else None
+            if nova_total is not None:
+                # Scale breakdown proportionally to Nova's total (more accurate)
+                if formula_total > 0:
+                    scale = nova_total / formula_total
+                    cost_breakdown = {k: round(v * scale, 2) for k, v in cost_breakdown.items()}
                 else:
-                    monthly_cost, cost_breakdown, cost_drivers = await self._calculate_generic_cost(
-                        component, usage_patterns
-                    )
+                    cost_breakdown = {"compute": round(nova_total, 2)}
+                monthly_cost = nova_total
+            else:
+                monthly_cost = formula_total
 
             optimization_potential = await self._calculate_optimization_potential(
                 component, monthly_cost
@@ -467,7 +473,7 @@ class CostCalculatorService:
         hourly_cost = node_hourly_costs.get(node_type, 0.068) * num_nodes
         monthly_cost = hourly_cost * 24 * 30
         
-        cost_breakdown = {"nodes": round(monthly_cost, 2)}
+        cost_breakdown = {"compute": round(monthly_cost, 2)}
         cost_drivers = [f"Node type: {node_type}", f"Number of nodes: {num_nodes}"]
         
         return monthly_cost, cost_breakdown, cost_drivers
@@ -477,21 +483,103 @@ class CostCalculatorService:
         component: ArchitectureComponent,
         usage_patterns: UsagePatterns
     ) -> Tuple[float, Dict[str, float], List[str]]:
-        """Calculate cost for unknown/generic services"""
-        
-        service_estimates = {
-            'api_gateway': 50.0,
-            'cloudfront': 30.0,
-            'cloudwatch': 20.0,
-            'secrets_manager': 15.0,
-            'kms': 5.0
+        """Calculate cost for unknown/generic services with per-service breakdown categories."""
+
+        svc = component.service_type.value
+
+        # Base estimate and breakdown proportions per service type
+        service_profiles: Dict[str, Tuple[float, Dict[str, float], List[str]]] = {
+            'api_gateway': (
+                50.0,
+                {"requests": 0.65, "data_transfer": 0.35},
+                [f"Requests: {usage_patterns.request_rate_per_second * 30 * 24 * 3600:,.0f}/month", "REST API pricing"]
+            ),
+            'cloudfront': (
+                30.0,
+                {"data_transfer": 0.75, "requests": 0.25},
+                ["CDN data transfer costs", "Edge request pricing"]
+            ),
+            'cloudwatch': (
+                20.0,
+                {"storage": 0.55, "requests": 0.45},
+                ["Metrics storage and ingestion", "Log group retention"]
+            ),
+            'secrets_manager': (
+                15.0,
+                {"base": 0.80, "requests": 0.20},
+                ["Per-secret monthly fee", "API call charges"]
+            ),
+            'kms': (
+                5.0,
+                {"base": 0.70, "requests": 0.30},
+                ["CMK monthly fee", "Cryptographic request charges"]
+            ),
+            'dynamodb': (
+                40.0,
+                {"storage": 0.40, "requests": 0.60},
+                ["On-demand read/write capacity", "Storage pricing"]
+            ),
+            'sqs': (
+                10.0,
+                {"requests": 1.0},
+                ["Per-message pricing", "Standard queue"]
+            ),
+            'sns': (
+                8.0,
+                {"requests": 1.0},
+                ["Per-notification pricing"]
+            ),
+            'kinesis': (
+                60.0,
+                {"compute": 0.70, "storage": 0.30},
+                ["Shard-hour pricing", "PUT payload units"]
+            ),
+            'ecs': (
+                80.0,
+                {"compute": 0.85, "storage": 0.15},
+                ["Fargate/EC2 task pricing", "EBS storage per task"]
+            ),
+            'eks': (
+                100.0,
+                {"compute": 0.80, "storage": 0.20},
+                ["Cluster management fee $0.10/hr", "Worker node compute"]
+            ),
+            'fargate': (
+                70.0,
+                {"compute": 0.90, "storage": 0.10},
+                ["vCPU and memory per-second billing"]
+            ),
+            'route53': (
+                5.0,
+                {"requests": 0.60, "base": 0.40},
+                ["Hosted zone fee", "DNS query pricing"]
+            ),
+            'waf': (
+                25.0,
+                {"base": 0.55, "requests": 0.45},
+                ["Web ACL monthly fee", "Rule processing charges"]
+            ),
+            'cognito': (
+                20.0,
+                {"base": 0.50, "requests": 0.50},
+                ["Monthly active user pricing"]
+            ),
+            'iam': (
+                0.0,
+                {"base": 1.0},
+                ["No additional charge for IAM"]
+            ),
         }
-        
-        estimated_cost = service_estimates.get(component.service_type.value, 25.0)
-        
-        cost_breakdown = {"estimated": estimated_cost}
-        cost_drivers = [f"Service type: {component.service_type.value}", "Cost estimated"]
-        
+
+        if svc in service_profiles:
+            base_cost, proportions, drivers = service_profiles[svc]
+            cost_breakdown = {k: round(base_cost * v, 2) for k, v in proportions.items()}
+            return base_cost, cost_breakdown, drivers
+
+        # Truly unknown service — use a generic compute estimate
+        estimated_cost = 25.0
+        cost_breakdown = {"compute": round(estimated_cost * 0.70, 2), "base": round(estimated_cost * 0.30, 2)}
+        cost_drivers = [f"Service: {svc}", "Estimated based on typical AWS service pricing"]
         return estimated_cost, cost_breakdown, cost_drivers
 
     def _get_instance_hourly_cost(self, instance_type: str, pricing_data: Dict[str, Any]) -> float:
