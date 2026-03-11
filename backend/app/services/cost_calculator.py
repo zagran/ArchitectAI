@@ -4,13 +4,10 @@ Real-time AWS cost analysis and optimization recommendations
 """
 
 import asyncio
-import json
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any, Tuple
-from decimal import Decimal, ROUND_HALF_UP
+from typing import Dict, List, Any, Tuple
 
 import boto3
-import httpx
 from botocore.exceptions import ClientError
 
 from app.core.config import settings
@@ -321,7 +318,7 @@ class CostCalculatorService:
     async def _calculate_rds_cost(
         self,
         component: ArchitectureComponent,
-        usage_patterns: UsagePatterns
+        _usage_patterns: UsagePatterns,
     ) -> Tuple[float, Dict[str, float], List[str]]:
         """Calculate RDS database costs"""
         
@@ -392,8 +389,8 @@ class CostCalculatorService:
 
     async def _calculate_alb_cost(
         self,
-        component: ArchitectureComponent,
-        usage_patterns: UsagePatterns
+        _component: ArchitectureComponent,
+        usage_patterns: UsagePatterns,
     ) -> Tuple[float, Dict[str, float], List[str]]:
         """Calculate Application Load Balancer costs"""
         
@@ -455,7 +452,7 @@ class CostCalculatorService:
     async def _calculate_elasticache_cost(
         self,
         component: ArchitectureComponent,
-        usage_patterns: UsagePatterns
+        _usage_patterns: UsagePatterns,
     ) -> Tuple[float, Dict[str, float], List[str]]:
         """Calculate ElastiCache costs"""
         
@@ -513,6 +510,33 @@ class CostCalculatorService:
                 5.0,
                 {"base": 0.70, "requests": 0.30},
                 ["CMK monthly fee", "Cryptographic request charges"]
+            ),
+            # Aurora variants — instance + storage + I/O model
+            'aurora': (
+                200.0,
+                {"compute": 0.60, "storage": 0.25, "io": 0.15},
+                ["Aurora instance hours", "Aurora storage per GB-month", "I/O operations"]
+            ),
+            'aurora_mysql': (
+                200.0,
+                {"compute": 0.60, "storage": 0.25, "io": 0.15},
+                ["Aurora MySQL instance hours", "Shared distributed storage", "I/O request units"]
+            ),
+            'aurora_postgresql': (
+                200.0,
+                {"compute": 0.60, "storage": 0.25, "io": 0.15},
+                ["Aurora PostgreSQL instance hours", "Shared distributed storage", "I/O request units"]
+            ),
+            # Other managed databases
+            'documentdb': (
+                150.0,
+                {"compute": 0.65, "storage": 0.25, "io": 0.10},
+                ["DocumentDB instance hours", "Cluster storage volume", "I/O operations"]
+            ),
+            'redshift': (
+                250.0,
+                {"compute": 0.70, "storage": 0.30},
+                ["Redshift node hours", "Managed storage"]
             ),
             'dynamodb': (
                 40.0,
@@ -576,9 +600,9 @@ class CostCalculatorService:
             cost_breakdown = {k: round(base_cost * v, 2) for k, v in proportions.items()}
             return base_cost, cost_breakdown, drivers
 
-        # Truly unknown service — use a generic compute estimate
+        # Truly unknown service — treat the whole cost as compute
         estimated_cost = 25.0
-        cost_breakdown = {"compute": round(estimated_cost * 0.70, 2), "base": round(estimated_cost * 0.30, 2)}
+        cost_breakdown = {"compute": estimated_cost}
         cost_drivers = [f"Service: {svc}", "Estimated based on typical AWS service pricing"]
         return estimated_cost, cost_breakdown, cost_drivers
 
@@ -621,7 +645,7 @@ class CostCalculatorService:
     async def _calculate_optimization_potential(
         self,
         component: ArchitectureComponent,
-        monthly_cost: float
+        _monthly_cost: float,
     ) -> float:
         """Calculate potential cost savings percentage"""
         
@@ -636,9 +660,9 @@ class CostCalculatorService:
 
     async def _generate_cost_scenarios(
         self,
-        architecture: SystemArchitecture,
-        usage_patterns: UsagePatterns,
-        component_costs: List[ComponentCost]
+        _architecture: SystemArchitecture,
+        _usage_patterns: UsagePatterns,
+        component_costs: List[ComponentCost],
     ) -> List[CostScenario]:
         """Generate different cost scenarios"""
         
