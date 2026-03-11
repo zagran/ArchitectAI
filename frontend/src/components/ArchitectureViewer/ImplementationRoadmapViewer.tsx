@@ -16,7 +16,6 @@ interface Task {
   name?: string;
   description?: string;
   estimated_duration_hours?: number;
-  prerequisites?: string[];
   deliverables?: string[];
   risks?: string[];
   validation_criteria?: string[];
@@ -28,7 +27,6 @@ interface Phase {
   description?: string;
   estimated_duration_days?: number;
   tasks?: Array<string | Task>;
-  prerequisites?: string[];
   deliverables?: string[];
   success_criteria?: string[];
 }
@@ -38,8 +36,6 @@ interface Roadmap {
   total_duration_days?: number;
   rollback_procedures?: string[];
   infrastructure_code?: Array<{ code_type?: string; file_name?: string; content?: string }>;
-  monitoring_setup?: Record<string, any>;
-  deployment_scripts?: Array<Record<string, string>>;
 }
 
 function taskName(t: string | Task): string {
@@ -48,10 +44,9 @@ function taskName(t: string | Task): string {
 
 function taskDetails(t: string | Task): Omit<Task, 'name'> | null {
   if (typeof t === 'string') return null;
-  const { name, ...rest } = t;
-  const hasDetail =
-    (rest.description ?? rest.risks?.length ?? rest.deliverables?.length ?? rest.validation_criteria?.length);
-  return hasDetail ? rest : null;
+  const { description, risks, deliverables, validation_criteria, estimated_duration_hours } = t;
+  if (!description && !risks?.length && !deliverables?.length && !validation_criteria?.length) return null;
+  return { description, risks, deliverables, validation_criteria, estimated_duration_hours };
 }
 
 function PhaseCard({ phase, index }: { phase: Phase; index: number }) {
@@ -61,7 +56,6 @@ function PhaseCard({ phase, index }: { phase: Phase; index: number }) {
 
   return (
     <div className="bg-white rounded-lg border border-secondary-200 shadow-sm overflow-hidden">
-      {/* Phase header */}
       <button
         onClick={() => setOpen((o) => !o)}
         className="w-full flex items-center gap-4 px-6 py-4 text-left hover:bg-secondary-50 transition-colors"
@@ -101,7 +95,6 @@ function PhaseCard({ phase, index }: { phase: Phase; index: number }) {
             className="overflow-hidden"
           >
             <div className="px-6 pb-5 space-y-5 border-t border-secondary-100">
-              {/* Tasks */}
               {tasks.length > 0 && (
                 <div className="pt-4">
                   <p className="text-xs font-semibold text-secondary-500 uppercase tracking-wider mb-3">Tasks</p>
@@ -188,7 +181,6 @@ function PhaseCard({ phase, index }: { phase: Phase; index: number }) {
                 </div>
               )}
 
-              {/* Success criteria */}
               {phase.success_criteria && phase.success_criteria.length > 0 && (
                 <div>
                   <p className="text-xs font-semibold text-secondary-500 uppercase tracking-wider mb-2">Success Criteria</p>
@@ -203,7 +195,6 @@ function PhaseCard({ phase, index }: { phase: Phase; index: number }) {
                 </div>
               )}
 
-              {/* Deliverables */}
               {phase.deliverables && phase.deliverables.length > 0 && (
                 <div>
                   <p className="text-xs font-semibold text-secondary-500 uppercase tracking-wider mb-2">Phase Deliverables</p>
@@ -233,7 +224,6 @@ export default function ImplementationRoadmapViewer({ architectureId }: Props) {
   const [roadmap, setRoadmap] = useState<Roadmap | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Auto-load cached roadmap on mount
   useEffect(() => {
     APIClient.getRoadmap(architectureId)
       .then((data) => {
@@ -260,11 +250,6 @@ export default function ImplementationRoadmapViewer({ architectureId }: Props) {
     }
   };
 
-  const phases = roadmap?.phases ?? [];
-  const totalDays = roadmap?.total_duration_days ?? phases.reduce((s, p) => s + (p.estimated_duration_days ?? 0), 0);
-  const totalTasks = phases.reduce((s, p) => s + (p.tasks?.length ?? 0), 0);
-
-  // Checking cache
   if (status === 'checking') {
     return (
       <div className="flex items-center justify-center py-20">
@@ -273,7 +258,6 @@ export default function ImplementationRoadmapViewer({ architectureId }: Props) {
     );
   }
 
-  // Idle — show prompt
   if (status === 'idle') {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -296,7 +280,6 @@ export default function ImplementationRoadmapViewer({ architectureId }: Props) {
     );
   }
 
-  // Loading
   if (status === 'loading') {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -307,7 +290,6 @@ export default function ImplementationRoadmapViewer({ architectureId }: Props) {
     );
   }
 
-  // Error
   if (status === 'error') {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -325,10 +307,12 @@ export default function ImplementationRoadmapViewer({ architectureId }: Props) {
     );
   }
 
-  // Done — show roadmap
+  const phases = roadmap?.phases ?? [];
+  const totalDays = roadmap?.total_duration_days ?? phases.reduce((s, p) => s + (p.estimated_duration_days ?? 0), 0);
+  const totalTasks = phases.reduce((s, p) => s + (p.tasks?.length ?? 0), 0);
+
   return (
     <div className="space-y-8">
-      {/* Summary bar */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
         <div className="bg-white rounded-lg border border-secondary-200 shadow-sm p-5">
           <p className="text-xs font-medium text-secondary-500 uppercase tracking-wider">Phases</p>
@@ -344,7 +328,6 @@ export default function ImplementationRoadmapViewer({ architectureId }: Props) {
         </div>
       </div>
 
-      {/* Timeline / phases */}
       {phases.length > 0 && (
         <div>
           <h3 className="text-sm font-semibold text-secondary-700 uppercase tracking-wider mb-4">Implementation Phases</h3>
@@ -356,7 +339,6 @@ export default function ImplementationRoadmapViewer({ architectureId }: Props) {
         </div>
       )}
 
-      {/* Infrastructure code */}
       {roadmap?.infrastructure_code && roadmap.infrastructure_code.length > 0 && (
         <div>
           <h3 className="text-sm font-semibold text-secondary-700 uppercase tracking-wider mb-4 flex items-center gap-2">
@@ -380,7 +362,6 @@ export default function ImplementationRoadmapViewer({ architectureId }: Props) {
         </div>
       )}
 
-      {/* Rollback procedures */}
       {roadmap?.rollback_procedures && roadmap.rollback_procedures.length > 0 && (
         <div className="bg-white rounded-lg border border-secondary-200 shadow-sm p-5">
           <h3 className="text-sm font-semibold text-secondary-700 uppercase tracking-wider mb-3 flex items-center gap-2">
@@ -399,7 +380,6 @@ export default function ImplementationRoadmapViewer({ architectureId }: Props) {
         </div>
       )}
 
-      {/* Regenerate */}
       <div className="flex justify-end">
         <button
           onClick={() => generate(true)}

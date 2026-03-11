@@ -28,13 +28,6 @@ export interface AuthResponse {
   expiresIn: number;
 }
 
-export enum ProjectStatus {
-  DRAFT = 'draft',
-  IN_PROGRESS = 'in_progress',
-  COMPLETED = 'completed',
-  ARCHIVED = 'archived'
-}
-
 export enum ServiceType {
   EC2 = 'ec2',
   ECS = 'ecs',
@@ -57,7 +50,7 @@ export enum ServiceType {
   X_RAY = 'x_ray',
   IAM = 'iam',
   KMS = 'kms',
-  SECRETS_MANAGER = 'secrets_manager'
+  SECRETS_MANAGER = 'secrets_manager',
 }
 
 export enum DeploymentModel {
@@ -66,7 +59,7 @@ export enum DeploymentModel {
   MICROSERVICES = 'microservices',
   SERVERLESS = 'serverless',
   CONTAINERIZED = 'containerized',
-  HYBRID = 'hybrid'
+  HYBRID = 'hybrid',
 }
 
 export interface RequirementsInput {
@@ -75,15 +68,6 @@ export interface RequirementsInput {
   diagrams?: string[];
   constraints?: Record<string, any>;
   preferences?: Record<string, any>;
-}
-
-export interface ArchitectureRequirements {
-  functionalRequirements: string[];
-  nonFunctionalRequirements: string[];
-  constraints: Record<string, any>;
-  scaleRequirements: Record<string, any>;
-  integrationRequirements?: string[];
-  complianceRequirements?: string[];
 }
 
 export interface ArchitectureComponent {
@@ -209,34 +193,6 @@ export interface ArchitectureResponse {
   requirementsInput?: RequirementsInput;
 }
 
-export interface Project {
-  id: string;
-  userId: string;
-  name: string;
-  description?: string;
-  requirements?: ArchitectureRequirements;
-  status: ProjectStatus;
-  architectures: SystemArchitecture[];
-  createdAt: string;
-  updatedAt: string;
-  tags: string[];
-}
-
-export interface ArchitectureTemplate {
-  id: string;
-  name: string;
-  description: string;
-  category: string;
-  templateSpec: Record<string, any>;
-  useCases: string[];
-  complexityLevel: 'simple' | 'intermediate' | 'advanced';
-  estimatedCostRange: string;
-  isPublic: boolean;
-  createdBy?: string;
-  createdAt: string;
-  tags: string[];
-}
-
 export interface ArchitectureFeedback {
   rating: number | null;
   feedbackText?: string | null;
@@ -249,30 +205,6 @@ export interface ArchitectureListItem {
   estimatedMonthlyCost?: number;
   componentsCount: number;
   deploymentModel: string;
-}
-
-export interface UsagePatterns {
-  dailyActiveUsers?: number;
-  peakConcurrentUsers?: number;
-  dataGrowthRateGbMonth?: number;
-  requestRatePerSecond?: number;
-  geographicRegions: string[];
-  usageSeasonality?: Record<string, number>;
-}
-
-export interface APIResponse<T = any> {
-  success: boolean;
-  data?: T;
-  message?: string;
-  error?: string;
-  errors?: string[];
-}
-
-export interface PaginatedResponse<T> extends APIResponse<T[]> {
-  total: number;
-  limit: number;
-  offset: number;
-  hasMore: boolean;
 }
 
 // UI Component Props
@@ -317,62 +249,6 @@ export interface SelectProps {
   className?: string;
 }
 
-export interface ModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  title?: string;
-  children: React.ReactNode;
-  size?: 'sm' | 'md' | 'lg' | 'xl';
-  className?: string;
-}
-
-export interface ToastMessage {
-  id: string;
-  type: 'success' | 'error' | 'warning' | 'info';
-  title: string;
-  message?: string;
-  duration?: number;
-}
-
-// Chart data types
-export interface ChartDataPoint {
-  name: string;
-  value: number;
-  color?: string;
-}
-
-export interface CostChartData {
-  name: string;
-  cost: number;
-  percentage: number;
-  color?: string;
-}
-
-// Architecture diagram types
-export interface DiagramNode {
-  id: string;
-  type: string;
-  position: { x: number; y: number };
-  data: {
-    label: string;
-    serviceType: ServiceType;
-    cost?: number;
-    configuration?: Record<string, any>;
-  };
-}
-
-export interface DiagramEdge {
-  id: string;
-  source: string;
-  target: string;
-  type?: string;
-  label?: string;
-  data?: {
-    protocol?: string;
-    bandwidth?: string;
-  };
-}
-
 // Form types
 export interface RequirementsFormData {
   description: string;
@@ -389,68 +265,3 @@ export interface RequirementsFormData {
   };
   files?: File[];
 }
-
-export interface ProjectFormData {
-  name: string;
-  description?: string;
-  tags?: string[];
-}
-
-// Navigation types
-export interface NavigationItem {
-  name: string;
-  href: string;
-  icon?: React.ComponentType<any>;
-  current?: boolean;
-  children?: NavigationItem[];
-}
-
-// Search and filter types
-export interface FilterOption {
-  key: string;
-  label: string;
-  value: string;
-  count?: number;
-}
-
-export interface SearchFilters {
-  query?: string;
-  category?: string;
-  status?: string;
-  tags?: string[];
-  dateRange?: {
-    from: string;
-    to: string;
-  };
-}
-
-// Error types
-export interface ErrorBoundaryState {
-  hasError: boolean;
-  error?: Error;
-  errorInfo?: React.ErrorInfo;
-}
-
-// Loading states
-export interface LoadingState {
-  isLoading: boolean;
-  error?: string;
-  data?: any;
-}
-
-// WebSocket message types
-export interface WebSocketMessage {
-  type: string;
-  payload: any;
-  timestamp: string;
-}
-
-// Export all types for easy importing
-export type {
-  // Re-export common types
-  ComponentType,
-  ReactNode,
-  MouseEvent,
-  ChangeEvent,
-  FormEvent
-} from 'react';
