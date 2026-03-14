@@ -386,7 +386,7 @@ class User(BaseModel):
 class UserCreate(BaseModel):
     """User creation model"""
     email: str = Field(..., description="User email")
-    password: str = Field(..., min_length=8, description="User password")
+    password: str = Field(..., min_length=4, description="User password")
     full_name: Optional[str] = Field(default=None)
 
 

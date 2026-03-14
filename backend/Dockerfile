@@ -55,6 +55,8 @@ RUN chown -R ${USER}:${GROUP} /.venv
 # change workdir
 WORKDIR $APP_HOME
 
+COPY --chown=api:api . .
+
 # ENTRYPOINT ["./docker-entrypoint.sh"]
 
 # Run the application

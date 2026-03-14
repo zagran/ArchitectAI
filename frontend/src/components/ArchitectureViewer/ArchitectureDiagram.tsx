@@ -61,17 +61,19 @@ const OPS_TYPES     = new Set(['cloudwatch', 'x_ray', 'cloudtrail', 'config', 's
 // ─── Mermaid code generation ───────────────────────────────────────────────────
 
 function generateMermaidCode(architecture: SystemArchitecture): string {
+  // classDef colors mirror serviceColors in the interactive canvas exactly
   const lines: string[] = [
     'flowchart TD',
-    '  classDef edge fill:#eef2ff,stroke:#818cf8,color:#3730a3',
-    '  classDef compute fill:#eff6ff,stroke:#60a5fa,color:#1e40af',
-    '  classDef data fill:#f5f3ff,stroke:#a78bfa,color:#4c1d95',
-    '  classDef msg fill:#fdf4ff,stroke:#e879f9,color:#701a75',
-    '  classDef sec fill:#fff1f2,stroke:#fb7185,color:#881337',
-    '  classDef ops fill:#fef3c7,stroke:#fbbf24,color:#92400e',
-    '  classDef internet fill:#f0fdf4,stroke:#4ade80,color:#14532d',
+    '  classDef edge     fill:#eef2ff,stroke:#818cf8,color:#3730a3,rx:8,ry:8',
+    '  classDef compute  fill:#eff6ff,stroke:#60a5fa,color:#1e40af,rx:8,ry:8',
+    '  classDef data     fill:#f5f3ff,stroke:#a78bfa,color:#4c1d95,rx:8,ry:8',
+    '  classDef msg      fill:#fdf4ff,stroke:#e879f9,color:#701a75,rx:8,ry:8',
+    '  classDef sec      fill:#fff1f2,stroke:#fb7185,color:#881337,rx:8,ry:8',
+    '  classDef ops      fill:#fef3c7,stroke:#fbbf24,color:#92400e,rx:8,ry:8',
+    '  classDef storage  fill:#f0fdf4,stroke:#4ade80,color:#14532d,rx:8,ry:8',
+    '  classDef internet fill:#f0fdf4,stroke:#4ade80,color:#14532d,rx:999,ry:999',
     '',
-    '  Internet([🌐 Internet / Users]):::internet',
+    '  Internet["🌐 Internet / Users"]:::internet',
   ];
 
   const edgeComps = architecture.components.filter(c => EDGE_TYPES.has(c.serviceType));
@@ -80,35 +82,29 @@ function generateMermaidCode(architecture: SystemArchitecture): string {
     const sid = comp.id.replace(/[^a-zA-Z0-9]/g, '_');
     const name = comp.name.replace(/"/g, "'");
     const st = comp.serviceType ?? '';
-    const costLabel = comp.estimatedMonthlyCost != null ? `\n$${comp.estimatedMonthlyCost.toFixed(0)}/mo` : '';
+    const costLabel = comp.estimatedMonthlyCost != null ? ` · $${comp.estimatedMonthlyCost.toFixed(0)}/mo` : '';
+    const label = `${name}\\n${st.toUpperCase()}${costLabel}`;
 
-    let shape: string;
     let cls: string;
-    if (EDGE_TYPES.has(st)) {
-      shape = `["${name}\n${st}${costLabel}"]`; cls = 'edge';
-    } else if (COMPUTE_TYPES.has(st)) {
-      shape = `["${name}\n${st}${costLabel}"]`; cls = 'compute';
-    } else if (DATA_TYPES.has(st)) {
-      shape = `[("${name}\n${st}${costLabel}")]`; cls = 'data';
-    } else if (MSG_TYPES.has(st)) {
-      shape = `>"${name}\n${st}${costLabel}"]`; cls = 'msg';
-    } else if (SEC_TYPES.has(st)) {
-      shape = `{"${name}\n${st}${costLabel}"}`; cls = 'sec';
-    } else {
-      shape = `["${name}\n${st}${costLabel}"]`; cls = 'ops';
+    if (EDGE_TYPES.has(st))    cls = 'edge';
+    else if (COMPUTE_TYPES.has(st)) cls = 'compute';
+    else if (DATA_TYPES.has(st)) {
+      cls = ['s3', 'ebs', 'efs', 'glacier'].includes(st) ? 'storage' : 'data';
     }
-    lines.push(`  ${sid}${shape}:::${cls}`);
+    else if (MSG_TYPES.has(st)) cls = 'msg';
+    else if (SEC_TYPES.has(st)) cls = 'sec';
+    else cls = 'ops';
+
+    lines.push(`  ${sid}["${label}"]:::${cls}`);
   }
 
   lines.push('');
 
-  // Internet → first edge layer
   for (const comp of edgeComps) {
     const sid = comp.id.replace(/[^a-zA-Z0-9]/g, '_');
     lines.push(`  Internet --> ${sid}`);
   }
 
-  // Architecture connections
   for (const conn of architecture.connections) {
     const fromComp = architecture.components.find(c => c.name === conn.from || c.id === conn.from);
     const toComp   = architecture.components.find(c => c.name === conn.to   || c.id === conn.to);
@@ -429,7 +425,7 @@ export default function ArchitectureDiagram({ architecture }: ArchitectureDiagra
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 p-1 bg-secondary-100 rounded-lg mb-5 w-fit">
+      <div className="flex border-b border-secondary-200 mb-5">
         {([
           { id: 'diagram' as Tab, label: 'Interactive Diagram' },
           { id: 'mermaid' as Tab, label: 'Mermaid Code' },
@@ -437,10 +433,10 @@ export default function ArchitectureDiagram({ architecture }: ArchitectureDiagra
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
+            className={`py-2.5 px-4 text-sm font-medium border-b-2 -mb-px transition-colors ${
               tab === t.id
-                ? 'bg-white text-secondary-900 shadow-sm'
-                : 'text-secondary-500 hover:text-secondary-700'
+                ? 'border-primary-500 text-primary-600'
+                : 'border-transparent text-secondary-500 hover:text-secondary-700 hover:border-secondary-300'
             }`}
           >
             {t.label}
@@ -460,19 +456,16 @@ export default function ArchitectureDiagram({ architecture }: ArchitectureDiagra
 
       {/* ── Tab: Mermaid code + rendered preview ── */}
       {tab === 'mermaid' && (
-        <div className="space-y-5">
-          {/* Rendered preview */}
-          <div>
-            <p className="text-xs font-medium text-secondary-500 uppercase tracking-wide mb-2">Preview</p>
-            <div className="rounded-lg border border-secondary-200 p-4 overflow-auto">
-              <MermaidRenderer code={mermaidCode} />
-            </div>
+        <div className="flex gap-4" style={{ height: 540 }}>
+          {/* Preview — same container style as the canvas */}
+          <div className="flex-1 rounded-lg border border-secondary-200 bg-[#fafafa] overflow-auto p-4">
+            <MermaidRenderer code={mermaidCode} />
           </div>
 
-          {/* Editable code */}
-          <div>
+          {/* Editor */}
+          <div className="flex flex-col w-72 flex-shrink-0">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-xs font-medium text-secondary-500 uppercase tracking-wide">Mermaid Source</p>
+              <p className="text-xs font-medium text-secondary-500 uppercase tracking-wide">Source</p>
               <button
                 onClick={handleCopy}
                 className="flex items-center gap-1.5 text-xs text-secondary-500 hover:text-secondary-700 px-2 py-1 rounded hover:bg-secondary-100 transition-colors"
@@ -487,13 +480,11 @@ export default function ArchitectureDiagram({ architecture }: ArchitectureDiagra
             <textarea
               value={mermaidCode}
               onChange={e => setMermaidCode(e.target.value)}
-              className="w-full h-72 font-mono text-xs bg-secondary-950 text-green-400 rounded-lg p-4 border border-secondary-800 resize-y focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="flex-1 font-mono text-xs text-green-400 rounded-lg p-3 border border-secondary-800 resize-none focus:outline-none focus:ring-2 focus:ring-primary-500"
               style={{ backgroundColor: '#0f172a' }}
               spellCheck={false}
             />
-            <p className="text-xs text-secondary-400 mt-1">
-              Edit the code above — the preview updates automatically.
-            </p>
+            <p className="text-xs text-secondary-400 mt-1.5">Edit to update preview.</p>
           </div>
         </div>
       )}

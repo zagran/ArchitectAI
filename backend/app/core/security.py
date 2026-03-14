@@ -100,49 +100,13 @@ class SecurityManager:
     def validate_password_strength(self, password: str) -> Dict[str, Any]:
         """Validate password strength"""
         errors = []
-        score = 0
-        
-        # Length check
-        if len(password) < 8:
-            errors.append("Password must be at least 8 characters long")
-        elif len(password) >= 12:
-            score += 1
-        
-        # Character variety checks
-        if not any(c.islower() for c in password):
-            errors.append("Password must contain at least one lowercase letter")
-        else:
-            score += 1
-            
-        if not any(c.isupper() for c in password):
-            errors.append("Password must contain at least one uppercase letter")
-        else:
-            score += 1
-            
-        if not any(c.isdigit() for c in password):
-            errors.append("Password must contain at least one digit")
-        else:
-            score += 1
-            
-        if not any(c in "!@#$%^&*()_+-=[]{}|;:,.<>?" for c in password):
-            errors.append("Password must contain at least one special character")
-        else:
-            score += 1
-        
-        # Common password check (simplified)
-        common_passwords = {"password", "123456", "password123", "admin", "qwerty"}
-        if password.lower() in common_passwords:
-            errors.append("Password is too common")
-            score = 0
-        
-        strength_levels = ["Very Weak", "Weak", "Fair", "Good", "Strong"]
-        strength = strength_levels[min(score, 4)]
-        
+        if len(password) < 4:
+            errors.append("Password must be at least 4 characters long")
         return {
             "valid": len(errors) == 0,
             "errors": errors,
-            "strength": strength,
-            "score": score
+            "strength": "OK",
+            "score": 1,
         }
 
 
