@@ -17,8 +17,6 @@ aiobotocore==2.7.0
 # HTTP and async
 httpx==0.25.2
 aiofiles==23.2.1
-aioredis==2.0.1
-
 # JSON and data processing
 orjson==3.9.10
 python-multipart==0.0.6

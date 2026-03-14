@@ -413,6 +413,5 @@ class ApplicationConfig(BaseModel):
     nova_models: Dict[str, NovaConfig] = Field(default_factory=dict)
     aws_region: str = Field(default="us-east-1")
     database_url: str = Field(...)
-    redis_url: Optional[str] = Field(default=None)
     jwt_secret_key: str = Field(..., min_length=32)
     jwt_expiration_hours: int = Field(default=24, ge=1, le=168)

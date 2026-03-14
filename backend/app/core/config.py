@@ -38,11 +38,6 @@ class Settings(BaseSettings):
     DATABASE_MAX_OVERFLOW: int = Field(default=20, description="Database max overflow connections")
     DATABASE_ECHO: bool = Field(default=False, description="Enable SQL query logging")
     
-    # Redis Configuration
-    REDIS_URL: str = Field(default="redis://localhost:6379", description="Redis connection URL")
-    REDIS_MAX_CONNECTIONS: int = Field(default=10, description="Redis max connections")
-    CACHE_TTL: int = Field(default=3600, description="Default cache TTL in seconds")
-    
     # Security Configuration
     JWT_SECRET_KEY: str = Field(
         default="your-secret-key-change-in-production",
@@ -74,7 +69,6 @@ class Settings(BaseSettings):
     
     # Cost Analysis Configuration
     AWS_PRICING_API_REGION: str = Field(default="us-east-1", description="AWS Pricing API region")
-    COST_CALCULATION_CACHE_TTL: int = Field(default=1800, description="Cost calculation cache TTL")
     
     # File Storage Configuration
     S3_BUCKET_NAME: Optional[str] = Field(default=None, description="S3 bucket for file storage")

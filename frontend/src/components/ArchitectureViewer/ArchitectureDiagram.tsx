@@ -73,7 +73,7 @@ function generateMermaidCode(architecture: SystemArchitecture): string {
     '  classDef storage  fill:#f0fdf4,stroke:#4ade80,color:#14532d,rx:8,ry:8',
     '  classDef internet fill:#f0fdf4,stroke:#4ade80,color:#14532d,rx:999,ry:999',
     '',
-    '  Internet["🌐 Internet / Users"]:::internet',
+    '  Internet[\"🌐 Internet / Users\"]:::internet',
   ];
 
   const edgeComps = architecture.components.filter(c => EDGE_TYPES.has(c.serviceType));
@@ -83,7 +83,7 @@ function generateMermaidCode(architecture: SystemArchitecture): string {
     const name = comp.name.replace(/"/g, "'");
     const st = comp.serviceType ?? '';
     const costLabel = comp.estimatedMonthlyCost != null ? ` · $${comp.estimatedMonthlyCost.toFixed(0)}/mo` : '';
-    const label = `${name}\\n${st.toUpperCase()}${costLabel}`;
+    const label = `${name}<br/>${st.toUpperCase()}${costLabel}`;
 
     let cls: string;
     if (EDGE_TYPES.has(st))    cls = 'edge';
