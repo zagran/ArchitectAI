@@ -266,3 +266,11 @@ export default function ArchitecturePage() {
     </Layout>
   );
 }
+
+export function getStaticPaths() {
+  return { paths: [], fallback: false };
+}
+
+export function getStaticProps() {
+  return { props: {} };
+}
