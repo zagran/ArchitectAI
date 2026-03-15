@@ -523,43 +523,6 @@ optimizations = await nova_client.suggest_optimizations(
 
 ---
 
-## Testing Strategy
-
-### Test Coverage
-
-```bash
-# Current test coverage
-Backend: 85%+ (target: 90%+)
-Frontend: 70%+ (target: 80%+)
-E2E: 60%+ (target: 75%+)
-```
-
-### Test Types
-
-1. **Unit Tests**: Individual function and component testing
-2. **Integration Tests**: Service interaction testing
-3. **API Tests**: Endpoint functionality and validation
-4. **E2E Tests**: Complete user workflow testing
-5. **Performance Tests**: Load and stress testing
-6. **Security Tests**: Vulnerability scanning
-
-### Running Tests
-
-```bash
-# All tests
-./scripts/test.sh
-
-# Specific test suites
-cd backend && python -m pytest tests/test_nova_client.py -v
-cd frontend && npm test -- --testPathPattern="components"
-
-# Coverage reports
-cd backend && python -m pytest --cov=app --cov-report=html
-cd frontend && npm test -- --coverage --watchAll=false
-```
-
----
-
 ## Troubleshooting
 
 ### Common Issues
@@ -716,7 +679,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 **Event**: Amazon Nova Hackathon 2026
 **Submission URL**: https://amazon-nova.devpost.com/  
 **Team**: Serhii Zahranychnyi - Senior Software Engineer  
-**Submission Date**: [To be updated]  
+**Submission Date**: 03/14/2026
 
 ### Judging Criteria Alignment
 
@@ -731,12 +694,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ### Demo Video Outline
 
-1. **Problem Introduction** (30s): Traditional architecture design challenges
-2. **Solution Overview** (30s): ArchitectAI's approach with Nova integration
-3. **Live Demo** (3m): Generate complete e-commerce architecture
-4. **Technical Deep Dive** (1m): Nova model integration showcase
-5. **Business Impact** (30s): Time savings, cost accuracy, accessibility
-
+[ArchitectAI for Amazon Nova Hackathon](https://youtu.be/DnpktARqa54)
 ---
 
 ## Contact
@@ -747,6 +705,7 @@ Email: [zagranlab@gmail.com]
 LinkedIn: https://www.linkedin.com/in/zagran/  
 Medium: https://medium.com/@zagran
 GitHub: https://github.com/zagran
+Site: https://zagran.dev
 
 ---
 
