@@ -27,23 +27,38 @@ export default function Layout({ children, user, isAuthenticated, onLogout }: La
             </div>
           </Link>
 
-          {isAuthenticated && user && (
-            <div className="flex items-center gap-x-6">
+          <div className="flex items-center gap-x-6">
+            {isAuthenticated && user ? (
+              <>
+                <Link
+                  href="/history"
+                  className="text-sm font-medium text-secondary-600 hover:text-secondary-900 transition-colors"
+                >
+                  History
+                </Link>
+                <Link
+                  href="/app"
+                  className="text-sm font-medium text-secondary-600 hover:text-secondary-900 transition-colors"
+                >
+                  Dashboard
+                </Link>
+                <span className="text-sm text-secondary-400">{user.email}</span>
+                <button
+                  onClick={onLogout}
+                  className="text-sm font-semibold text-secondary-600 hover:text-secondary-900 transition-colors"
+                >
+                  Log out
+                </button>
+              </>
+            ) : (
               <Link
-                href="/history"
-                className="text-sm font-medium text-secondary-600 hover:text-secondary-900 transition-colors"
+                href="/app"
+                className="text-sm font-semibold text-primary-600 hover:text-primary-700 transition-colors"
               >
-                History
+                Sign In
               </Link>
-              <span className="text-sm text-secondary-400">{user.email}</span>
-              <button
-                onClick={onLogout}
-                className="text-sm font-semibold text-secondary-600 hover:text-secondary-900 transition-colors"
-              >
-                Log out
-              </button>
-            </div>
-          )}
+            )}
+          </div>
         </nav>
       </header>
 

@@ -257,7 +257,7 @@ export default function ArchitecturePage() {
             architecture={result.architecture}
             costAnalysis={result.costAnalysis}
             optimizations={result.optimizationSuggestions}
-            onStartOver={() => router.push('/')}
+            onStartOver={() => router.push('/app')}
           />
         </motion.div>
 
